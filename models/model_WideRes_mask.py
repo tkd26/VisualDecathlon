@@ -58,14 +58,24 @@ class film(nn.Module):
         normalized = self.norm(x)
 #         print(factor)
         factor_binary = torch.where(factor > 0, torch.ones(1).cuda(), torch.zeros(1).cuda())
-        out = normalized * factor + bias 
-#         out = normalized * factor_binary + bias
+#         out = normalized * factor + bias 
+        out = normalized * factor_binary + bias
         return out
     
     
 
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=True)
+
+# def conv_init(m):
+#     classname = m.__class__.__name__
+#     if classname.find('Conv') != -1:
+#         init.xavier_uniform(m.weight, gain=np.sqrt(2))
+#         init.constant(m.bias, 0)
+#     elif classname.find('BatchNorm') != -1:
+#         init.constant(m.weight, 1)
+#         init.constant(m.bias, 0)
+
 
 class wide_basic(nn.Module):
     def __init__(self, in_planes, planes, stride=1, mode_norm='in'):
@@ -93,21 +103,19 @@ class wide_basic(nn.Module):
 
 
 class WideResNet(nn.Module):
-    # def __init__(self, depth, widen_factor, num_classes, fc, mode_norm='in'):
-    def __init__(self, depth, widen_factor, task_dict, fc, mode_norm='in'):
+    def __init__(self, depth, widen_factor, num_classes, fc, mode_norm='in'):
         super(WideResNet, self).__init__()
         self.in_planes = 16
         self.n = int((depth - 4) / 6) # num blocks
         k = widen_factor
         filter = [16, 16 * k, 32 * k, 64 * k]
-        self.task_dict = task_dict
         
         self.nc_list = [filter[0], # init conv
                         filter[0],filter[1],filter[1],filter[1],filter[1],filter[1],filter[1],filter[1], # layer1
                         filter[1],filter[2],filter[2],filter[2],filter[2],filter[2],filter[2],filter[2], # layer2
                         filter[2],filter[3],filter[3],filter[3],filter[3],filter[3],filter[3],filter[3], # layer3
                         filter[3]] # last conv
-        self.film_generator = film_generator(sum(self.nc_list), len(self.task_dict), fc)
+        self.film_generator = film_generator(sum(self.nc_list), len(num_classes), fc)
         
         # input conv
         self.film = film(filter[0], mode_norm)
@@ -140,13 +148,24 @@ class WideResNet(nn.Module):
         self.film_last = film(filter[3], mode_norm)
         
         # output layer
-        self.linear = nn.ModuleDict({})
-        for task_name,item in self.task_dict.items():
-            self.linear[task_name] = nn.Sequential(
-                nn.Linear(filter[3], item['num_class']),
-                nn.Softmax(dim=1))
+        self.linear = nn.ModuleList([nn.Sequential(
+            nn.Linear(filter[3], num_classes[0]),
+            nn.Softmax(dim=1))])
+        
+        for j in range(1, len(num_classes)):
+            self.linear.append(nn.Sequential(nn.Linear(filter[3], num_classes[j]),
+                                                 nn.Softmax(dim=1)))
 
-    def forward(self, x, task_name, task_vec):
+
+#     def conv_layer(self, channel):
+#         conv_block = nn.Sequential(
+#             nn.Conv2d(in_channels=channel[0], out_channels=channel[1], kernel_size=3, padding=1),
+#             nn.BatchNorm2d(num_features=channel[1]),
+#             nn.ReLU(inplace=True),
+#         )
+#         return conv_block
+
+    def forward(self, x, k, task_vec):
         # film generator
         factor, bias = self.film_generator(task_vec)
         factor_list, bias_list = [],[]
@@ -200,7 +219,7 @@ class WideResNet(nn.Module):
         pred = F.avg_pool2d(g_encoder[-1], 8)
         pred = pred.contiguous().view(pred.size(0), -1)
 
-        out = self.linear[task_name](pred)
+        out = self.linear[k](pred)
         return out
 
     def model_fit(self, x_pred, x_output, num_output, device):

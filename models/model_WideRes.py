@@ -70,12 +70,10 @@ class film(nn.Module):
             # 画像のプロット先の準備
             fig = plt.figure()
             plt.bar(range(1, len(view_factor)+1), view_factor.cpu().numpy(), ec='black')
-            plt.ylim(0, 4)
             plt.title("normal histogram")
             fig.savefig("/home/yanai-lab/takeda-m/space/jupyter/notebook/Multi-Task-Learning/VisualDecathlon_lr/graph/{}img.png".format(k))
             fig2 = plt.figure()
             plt.bar(range(1, len(view_bias)+1), view_bias.cpu().numpy(), ec='black')
-            plt.ylim(-3, 3)
             plt.title("normal histogram")
             fig2.savefig("/home/yanai-lab/takeda-m/space/jupyter/notebook/Multi-Task-Learning/VisualDecathlon_lr/graph/{}img_bias.png".format(k))
         return out
@@ -111,21 +109,19 @@ class wide_basic(nn.Module):
 
 
 class WideResNet(nn.Module):
-    # def __init__(self, depth, widen_factor, num_classes, fc, mode_norm='in'):
-    def __init__(self, depth, widen_factor, task_dict, fc, mode_norm='in'):
+    def __init__(self, depth, widen_factor, num_classes, fc, mode_norm='in'):
         super(WideResNet, self).__init__()
         self.in_planes = 16
         self.n = int((depth - 4) / 6) # num blocks
         k = widen_factor
         filter = [16, 16 * k, 32 * k, 64 * k]
-        self.task_dict = task_dict
         
         self.nc_list = [filter[0], # init conv
                         filter[0],filter[1],filter[1],filter[1],filter[1],filter[1],filter[1],filter[1], # layer1
                         filter[1],filter[2],filter[2],filter[2],filter[2],filter[2],filter[2],filter[2], # layer2
                         filter[2],filter[3],filter[3],filter[3],filter[3],filter[3],filter[3],filter[3], # layer3
                         filter[3]] # last conv
-        self.film_generator = film_generator(sum(self.nc_list), len(self.task_dict), fc)
+        self.film_generator = film_generator(sum(self.nc_list), len(num_classes), fc)
         
         # input conv
         self.film = film(filter[0], mode_norm)
@@ -158,13 +154,24 @@ class WideResNet(nn.Module):
         self.film_last = film(filter[3], mode_norm)
         
         # output layer
-        self.linear = nn.ModuleDict({})
-        for task_name,item in self.task_dict.items():
-            self.linear[task_name] = nn.Sequential(
-                nn.Linear(filter[3], item['num_class']),
-                nn.Softmax(dim=1))
+        self.linear = nn.ModuleList([nn.Sequential(
+            nn.Linear(filter[3], num_classes[0]),
+            nn.Softmax(dim=1))])
+        
+        for j in range(1, len(num_classes)):
+            self.linear.append(nn.Sequential(nn.Linear(filter[3], num_classes[j]),
+                                                 nn.Softmax(dim=1)))
 
-    def forward(self, x, task_name, task_vec, visualize=False):
+
+#     def conv_layer(self, channel):
+#         conv_block = nn.Sequential(
+#             nn.Conv2d(in_channels=channel[0], out_channels=channel[1], kernel_size=3, padding=1),
+#             nn.BatchNorm2d(num_features=channel[1]),
+#             nn.ReLU(inplace=True),
+#         )
+#         return conv_block
+
+    def forward(self, x, k, task_vec):
         # film generator
         factor, bias = self.film_generator(task_vec)
         factor_list, bias_list = [],[]
@@ -196,8 +203,8 @@ class WideResNet(nn.Module):
 #             param_idx += 2
 #             g_encoder[2] = self.layer2[i](g_encoder[2], factor_list[param_idx:param_idx+2], bias_list[param_idx:param_idx+2])
         
-        g_encoder[2] = self.layer2[0](g_encoder[1], factor_list[9:11], bias_list[9:11])
-        g_encoder[2] = self.layer2[1](g_encoder[2], factor_list[11:13], bias_list[11:13],  visualize=visualize, k=task_name)
+        g_encoder[2] = self.layer2[0](g_encoder[1], factor_list[9:11], bias_list[9:11],  visualize=True, k=k)
+        g_encoder[2] = self.layer2[1](g_encoder[2], factor_list[11:13], bias_list[11:13])
         g_encoder[2] = self.layer2[2](g_encoder[2], factor_list[13:15], bias_list[13:15])
         g_encoder[2] = self.layer2[3](g_encoder[2], factor_list[15:17], bias_list[15:17])
         
@@ -218,7 +225,7 @@ class WideResNet(nn.Module):
         pred = F.avg_pool2d(g_encoder[-1], 8)
         pred = pred.contiguous().view(pred.size(0), -1)
 
-        out = self.linear[task_name](pred)
+        out = self.linear[k](pred)
         return out
 
     def model_fit(self, x_pred, x_output, num_output, device):

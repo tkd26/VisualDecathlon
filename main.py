@@ -30,29 +30,16 @@ from utils.optimizer import *
 from utils.data_transform import *
 
 parser = argparse.ArgumentParser(description='Multi-task: Attention Network')
-
-parser.add_argument('--imagenet12', action='store_true')
-parser.add_argument('--aircraft', action='store_true')
-parser.add_argument('--cifar100', action='store_true')
-parser.add_argument('--daimlerpedcls', action='store_true')
-parser.add_argument('--dtd', action='store_true')
-parser.add_argument('--gtsrb', action='store_true')
-parser.add_argument('--omniglot', action='store_true')
-parser.add_argument('--svhn', action='store_true')
-parser.add_argument('--ucf101', action='store_true')
-parser.add_argument('--vgg_flowers', action='store_true')
-
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
-parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
+parser.add_argument('--mode', default='train', choices=['train', 'val'])
 parser.add_argument('--mode_model', default='WideRes', choices=['WideRes','WideRes_mask', 'WideRes_STL', 'ResNet18'])
-parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd_pre', 'adam'])
+parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'adam'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
 parser.add_argument('--fc', type=int, default=5, choices=[1,3,5])
 parser.add_argument('--norm', type=str, default='bn', choices=['in', 'bn'])
 parser.add_argument('--gpu', type=str, default=None)
 parser.add_argument('--version', type=str, default=None)
 parser.add_argument('--load', default=False, nargs='*')
-parser.add_argument('--visualize', action='store_true') # filmパラメータを可視化
 # parser.add_argument('--save_outputs', action='store_true')
 # parser.add_argument('--save_imgs_idx', type=int, default=None)
 
@@ -69,74 +56,22 @@ else:
 ------------------------------------------------------------------------
 '''
 data_path = '/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/data/'
-# data_names = ['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd',
-#              'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers']
-# data_classes = [1000, 100, 100, 2, 47, 43, 1623, 10, 101, 102]
+data_names = ['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd',
+             'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers']
+data_classes = [1000, 100, 100, 2, 47, 43, 1623, 10, 101, 102]
 
 
-# if args.version in data_names:
-#     data_name = [args.version]
-#     data_class = [data_classes[data_names.index(args.version)]]
-# elif args.version == 'cifar100_ucf101':
-#     data_name = ['cifar100', 'ucf101']
-#     data_class = [100, 101]  
-# elif args.version == '5tasks':
-#     data_name = ['aircraft', 'cifar100', 'daimlerpedcls', 'dtd', 'gtsrb']
-#     data_class = [100, 100, 2, 47, 43]
-# else:
-#     data_name = ['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd',
-#              'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers']
-#     data_class = [1000, 100, 100, 2, 47, 43, 1623, 10, 101, 102]
-
-task_dict = {
-    'imagenet12': {
-        'do': args.imagenet12,
-        'num_class': 1000,
-        'task_vec': torch.Tensor([1,0,0,0,0,0,0,0,0,0])},
-    'aircraft': {
-        'do': args.aircraft,
-        'num_class': 100,
-        'task_vec': torch.Tensor([0,1,0,0,0,0,0,0,0,0])},
-    'cifar100': {
-        'do': args.cifar100,
-        'num_class': 100,
-        'task_vec': torch.Tensor([0,0,1,0,0,0,0,0,0,0])},
-    'daimlerpedcls': {
-        'do': args.daimlerpedcls,
-        'num_class': 2,
-        'task_vec': torch.Tensor([0,0,0,1,0,0,0,0,0,0])},
-    'dtd': {
-        'do': args.dtd,
-        'num_class': 47,
-        'task_vec': torch.Tensor([0,0,0,0,1,0,0,0,0,0])},
-    'gtsrb': {
-        'do': args.gtsrb,
-        'num_class': 43,
-        'task_vec': torch.Tensor([0,0,0,0,0,1,0,0,0,0])},
-    'omniglot': {
-        'do': args.omniglot,
-        'num_class': 1623,
-        'task_vec': torch.Tensor([0,0,0,0,0,0,1,0,0,0])},
-    'svhn': {
-        'do': args.svhn,
-        'num_class': 10,
-        'task_vec': torch.Tensor([0,0,0,0,0,0,0,1,0,0])},
-    'ucf101': {
-        'do': args.ucf101,
-        'num_class': 101,
-        'task_vec': torch.Tensor([0,0,0,0,0,0,0,0,1,0])},
-    'vgg-flowers': {
-        'do': args.vgg_flowers,
-        'num_class': 102,
-        'task_vec': torch.Tensor([0,0,0,0,0,0,0,0,0,1])},
-}
-
-if args.mode == 'train' or args.mode == 'val': # train時は選択したタスクのみを学習
-    do_task_list = [name for name,item in task_dict.items() if item['do']==True]
-elif args.mode == 'test': # val時はすべてのタスクを評価
-    do_task_list = [name for name,item in task_dict.items()]
+if args.version in data_names:
+    data_name = [args.version]
+    data_class = [data_classes[data_names.index(args.version)]]
+elif args.version == 'cifar100_ucf101':
+    data_name = ['cifar100', 'ucf101']
+    data_class = [100, 101]  
+elif args.version == '5tasks':
+    data_name = ['aircraft', 'cifar100', 'daimlerpedcls', 'dtd', 'gtsrb']
+    data_class = [100, 100, 2, 47, 43]
     
-task_num = len(task_dict)
+task_num = len(data_name)
 
 '''
 ------------------------------------------------------------------------
@@ -152,8 +87,7 @@ if args.fc!=None: save_name.extend(['FC{}'.format(args.fc)])
 if args.batch_size!=128: save_name.extend(['BS{}'.format(args.batch_size)])
 # save_name.extend([args.norm])
 if args.version: save_name.extend([args.version])
-# save_name.extend(data_name)
-save_name.extend(do_task_list)
+save_name.extend(data_name)
 save_name = '_'.join(save_name)
 
 # make folder to save network
@@ -165,21 +99,20 @@ if not os.path.exists('./weights/{}'.format(save_name)):
 データロード
 ------------------------------------------------------------------------
 '''
-# do_task_listに記載のあるタスクのデータのみロード
-im_train_set = {}
-im_test_set = {}
-for task_name in do_task_list:
-    im_train_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/train',
-                                                  transform=data_transform(data_path,task_name)),
+im_train_set = [0] * task_num
+im_test_set = [0] * task_num
+for i in range(task_num):
+    im_train_set[i] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + data_name[i] + '/train',
+                                                  transform=data_transform(data_path,data_name[i])),
                                                   batch_size=args.batch_size,
                                                   shuffle=True,
                                                   num_workers=4, pin_memory=True)
-    im_test_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/val',
-                                                 transform=data_transform(data_path,task_name, train=False)),
+    im_test_set[i] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + data_name[i] + '/val',
+                                                 transform=data_transform(data_path,data_name[i], train=False)),
                                                  batch_size=args.batch_size,
                                                  shuffle=False,
                                                  num_workers=4, pin_memory=True)
-    print('{} loaded'.format(task_name))
+    print('{} loaded'.format(data_name[i]))
 print('-----All dataset loaded-----')
 
 
@@ -191,7 +124,7 @@ print('-----All dataset loaded-----')
 # define WRN model
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if args.mode_model=='WideRes':
-    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm).to(device)
+    model = WideResNet(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm).to(device)
 elif args.mode_model=='WideRes_mask':
     model = WideResNet_mask(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm).to(device)
 elif args.mode_model=='WideRes_STL':
@@ -213,7 +146,7 @@ if args.random_lr:
                 {"params": model.layer3.parameters(), "lambda": 0.0},
                 {"params": model.film_last.parameters(), "lambda": 1.0},
                 {"params": model.linear.parameters(), "lambda": 1.0},
-        ], do_task_list=do_task_list)
+        ], do_task_list=data_name)
     elif args.optim=='sgd2':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
@@ -225,7 +158,7 @@ if args.random_lr:
                 {"params": model.film_last.parameters(), "lambda": 1.0},
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.1, weight_decay=5e-5, nesterov=True, momentum=0.9, 
-                              do_task_list=do_task_list)
+                              do_task_list=data_name)
     elif args.optim=='sgd3':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
@@ -237,7 +170,7 @@ if args.random_lr:
                 {"params": model.film_last.parameters(), "lambda": 1.0},
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
-                              do_task_list=do_task_list)
+                              do_task_list=data_name)
     elif args.optim=='sgd3-2':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
@@ -249,7 +182,7 @@ if args.random_lr:
                 {"params": model.film_last.parameters(), "lambda": 1.0},
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
-                              do_task_list=do_task_list)
+                              do_task_list=data_name)
     elif args.optim=='sgd3-3':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
@@ -261,7 +194,7 @@ if args.random_lr:
                 {"params": model.film_last.parameters(), "lambda": 1.0},
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
-                              do_task_list=do_task_list)
+                              do_task_list=data_name)
     elif args.optim=='sgd3-4':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
@@ -273,7 +206,7 @@ if args.random_lr:
                 {"params": model.film_last.parameters(), "lambda": 1.0},
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
-                              do_task_list=do_task_list)
+                              do_task_list=data_name)
     elif args.optim=='sgd3-5':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
@@ -285,19 +218,7 @@ if args.random_lr:
                 {"params": model.film_last.parameters(), "lambda": 1.0},
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
-                              do_task_list=do_task_list)
-    elif args.optim=='sgd_pre':
-            optimizer = SGD_c(params=[
-                {"params": model.film_generator.parameters(), "lambda": 1.0},
-                {"params": model.film.parameters(), "lambda": 1.0},
-                {"params": model.conv1.parameters(), "lambda": 1.0},
-                {"params": model.layer1.parameters(), "lambda": 1.0},
-                {"params": model.layer2.parameters(), "lambda": 1.0},
-                {"params": model.layer3.parameters(), "lambda": 0.5},
-                {"params": model.film_last.parameters(), "lambda": 1.0},
-                {"params": model.linear.parameters(), "lambda": 1.0},],
-                              lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
-                              do_task_list=['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd', 'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers'])
+                              do_task_list=data_name)
     else:
         print('optimizer not selected.')
         sys.exit()
@@ -331,7 +252,7 @@ else:
     load_epoch = 0
     
 # define writer
-if args.mode =='train':
+if args.mode=='train':
     writer = tbx.SummaryWriter(log_dir='logs/{}'.format(save_name))
 
 # compute parameter space
@@ -347,8 +268,7 @@ print('Parameter Space: ABS: {:.1f}'.format(count_parameters(model)))
 # define parameters
 total_epoch = 1000
 first_run = True
-# avg_cost = np.zeros([total_epoch, task_num, 4], dtype=np.float32)
-
+avg_cost = np.zeros([total_epoch, task_num, 4], dtype=np.float32)
 # task_vecs = { 
 #     'imagenet12':   torch.Tensor([1,0,0,0,0,0,0,0,0,0]),
 #     'aircraft':     torch.Tensor([0,1,0,0,0,0,0,0,0,0]),
@@ -362,11 +282,11 @@ first_run = True
 #     'vgg-flowers':  torch.Tensor([0,0,0,0,0,0,0,0,0,1]),
 # }
 # task vectors
-# task_vecs = {}
-# task_vecs_one_hot = torch.eye(task_num)
-# for i,task_name in enumerate(data_name):
-#     task_vecs[task_name] = task_vecs_one_hot[i]
-# print('TASK VECS:', task_vecs)
+task_vecs = {}
+task_vecs_one_hot = torch.eye(task_num)
+for i,task_name in enumerate(data_name):
+    task_vecs[task_name] = task_vecs_one_hot[i]
+print('TASK VECS:', task_vecs)
     
 
 '''
@@ -374,19 +294,18 @@ first_run = True
 学習
 ------------------------------------------------------------------------
 '''
-max_acc = dict([(task_name, 0) for task_name in do_task_list])
-max_acc_epoch = dict([(task_name, 0) for task_name in do_task_list])
-max_avg_acc = dict([(task_name, 0) for task_name in do_task_list])
+max_acc = [0] * task_num
+max_acc_epoch = [0] * task_num
+max_avg_acc = [0] * task_num
 max_avg_acc_epoch = 0
 
 # running
 for index in range(load_epoch, total_epoch):
-    avg_cost = dict([(task_name, [0,0,0,0]) for task_name in do_task_list])
 
-    for task_name in do_task_list:
+    for k in range(task_num):
         
         cost = np.zeros(2, dtype=np.float32)
-        train_dataset = iter(im_train_set[task_name])
+        train_dataset = iter(im_train_set[k])
         train_batch = len(train_dataset)
 
         if args.mode == 'train':
@@ -402,17 +321,17 @@ for index in range(load_epoch, total_epoch):
                     train_data, train_label = train_data.to(device), train_label.to(device)
 
                     batch = train_data.shape[0]
-                    task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
+                    task_vec = task_vecs[data_name[k]].unsqueeze(0).repeat(batch,1).to(device)
 
-                    train_pred1 = model(train_data, task_name, task_vec)
+                    train_pred1 = model(train_data, k, task_vec)
 
                     # reset optimizer with zero gradient
                     
-                    train_loss1 = model.model_fit(train_pred1, train_label, num_output=task_dict[task_name]['num_class'], device=device)
+                    train_loss1 = model.model_fit(train_pred1, train_label, num_output=data_class[k], device=device)
                     train_loss = torch.mean(train_loss1)
                     train_loss.backward()
                     if args.random_lr:
-                        optimizer.step(task_name=task_name)
+                        optimizer.step(task_idx=k)
                     else:
                         optimizer.step()
                     optimizer.zero_grad()
@@ -423,15 +342,14 @@ for index in range(load_epoch, total_epoch):
 
                     cost[0] = torch.mean(train_loss1).item()
                     cost[1] = train_acc1
-                    # avg_cost[index][task_name][0:2] += cost / train_batch
-                    avg_cost[task_name][0:2] += cost / train_batch
+                    avg_cost[index][k][0:2] += cost / train_batch
                     
-        if args.mode == 'train' or args.mode == 'val' or args.mode == 'test':
+        if args.mode == 'train' or args.mode == 'val':
             # evaluating test data
             print('val')
             with torch.no_grad():
                 model.eval()
-                test_dataset = iter(im_test_set[task_name])
+                test_dataset = iter(im_test_set[k])
                 test_batch = len(test_dataset)
                 for i in range(test_batch):
                     test_data, test_label = test_dataset.next()
@@ -439,11 +357,11 @@ for index in range(load_epoch, total_epoch):
                     test_data, test_label = test_data.to(device), test_label.to(device)
 
                     batch = test_data.shape[0]
-                    task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
+                    task_vec = task_vecs[data_name[k]].unsqueeze(0).repeat(batch,1).to(device)
 
-                    test_pred1 = model(test_data, task_name, task_vec, visualize=args.visualize)
+                    test_pred1 = model(test_data, k, task_vec)
 
-                    test_loss1 = model.model_fit(test_pred1, test_label, num_output=task_dict[task_name]['num_class'], device=device)
+                    test_loss1 = model.model_fit(test_pred1, test_label, num_output=data_class[k], device=device)
                     test_loss = torch.mean(test_loss1)
 
                     # calculate testing loss and accuracy
@@ -452,43 +370,40 @@ for index in range(load_epoch, total_epoch):
 
                     cost[0] = torch.mean(test_loss1).item()
                     cost[1] = test_acc1
-                    # avg_cost[index][task_name][2:] += cost / test_batch
-                    avg_cost[task_name][2:] += cost / test_batch
+                    avg_cost[index][k][2:] += cost / test_batch
         
-        # if avg_cost[index][task_name][3] > max_acc[task_name]:
-        if avg_cost[task_name][3] > max_acc[task_name]:
-            # max_acc[task_name] = avg_cost[index][task_name][3]
-            max_acc[task_name] = avg_cost[task_name][3]
-            max_acc_epoch[task_name] = index + 1
+        if avg_cost[index][k][3] > max_acc[k]:
+            max_acc[k] = avg_cost[index][k][3]
+            max_acc_epoch[k] = index + 1
         print('EPOCH: {:04d} | DATASET: {:s} || TRAIN: {:.4f} {:.4f} || TEST: {:.4f} {:.4f} || MAX: {:.4f} ({:04d}ep)'
-              .format(index+1, task_name,
-                      avg_cost[task_name][0], avg_cost[task_name][1],
-                      avg_cost[task_name][2], avg_cost[task_name][3],
-                      max_acc[task_name], max_acc_epoch[task_name]))
-    if sum(item[3] for item in avg_cost.values()) > sum(max_avg_acc.values()):
-        for task_name in avg_cost.keys():
-            max_avg_acc[task_name] = avg_cost[task_name][3]
-            max_avg_acc_epoch = index + 1
+              .format(index+1, data_name[k],
+                      avg_cost[index][k][0], avg_cost[index][k][1],
+                      avg_cost[index][k][2], avg_cost[index][k][3],
+                      max_acc[k], max_acc_epoch[k]))
+        
+    if sum(avg_cost[index, :, 3]) > sum(max_avg_acc[:]):
+        max_avg_acc[:] = avg_cost[index, :, 3]
+        max_avg_acc_epoch = index + 1
     avg_acc_txt = '({:04d}ep)'.format(max_avg_acc_epoch)
-    for task_name in do_task_list:
-        avg_acc_txt += '{}: {:.4f}, '.format(task_name, max_avg_acc[task_name])
+    for i in range(task_num):
+        avg_acc_txt += '{}: {:.4f}, '.format(data_name[i], max_avg_acc[i])
     print(avg_acc_txt)
     
     print('===================================================')
     torch.save(model.state_dict(), 'weights/{}/{:0=5}.pth'.format(save_name, index+1))
         
-    if args.mode =='val' or args.mode == 'test': 
+    if args.mode=='val': 
         break
     else:     
         # write tensorboardX
-        train_loss = dict([(task_name, avg_cost[task_name][0]) for task_name in do_task_list])
-        train_acc = dict([(task_name, avg_cost[task_name][1]) for task_name in do_task_list])
-        val_loss = dict([(task_name, avg_cost[task_name][2]) for task_name in do_task_list])
-        val_acc = dict([(task_name, avg_cost[task_name][3]) for task_name in do_task_list])
+        train_loss = dict([(data_name[i], avg_cost[index][i][0]) for i in range(task_num)])
+        train_acc = dict([(data_name[i], avg_cost[index][i][1]) for i in range(task_num)])
+        val_loss = dict([(data_name[i], avg_cost[index][i][2]) for i in range(task_num)])
+        val_acc = dict([(data_name[i], avg_cost[index][i][3]) for i in range(task_num)])
         writer.add_scalars('train_loss', train_loss, index+1)
         writer.add_scalars('train_acc', train_acc, index+1)
         writer.add_scalars('val_loss', val_loss, index+1)
         writer.add_scalars('val_acc', val_acc, index+1)
-                    
+        
 if args.mode=='train': writer.close()
 
