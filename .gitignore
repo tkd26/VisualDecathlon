@@ -7,7 +7,7 @@ MTAN
 pycocotools
 sync_batchnorm
 weights
-weights0
+weights_nonpretrain
 *.pickle
 *.txt
 *.ipynb

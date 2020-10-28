@@ -157,8 +157,9 @@ save_name.extend(do_task_list)
 save_name = '_'.join(save_name)
 
 # make folder to save network
-if not os.path.exists('./weights/{}'.format(save_name)):
-    os.makedirs('./weights/{}'.format(save_name))
+if args.mode == 'train':
+    if not os.path.exists('./weights/{}'.format(save_name)):
+        os.makedirs('./weights/{}'.format(save_name))
 
 '''
 ------------------------------------------------------------------------
@@ -425,6 +426,9 @@ for index in range(load_epoch, total_epoch):
                     cost[1] = train_acc1
                     # avg_cost[index][task_name][0:2] += cost / train_batch
                     avg_cost[task_name][0:2] += cost / train_batch
+
+            torch.save(model.state_dict(), 'weights/{}/{:0=5}.pth'.format(save_name, index+1))
+
                     
         if args.mode == 'train' or args.mode == 'val' or args.mode == 'test':
             # evaluating test data
@@ -475,20 +479,18 @@ for index in range(load_epoch, total_epoch):
     print(avg_acc_txt)
     
     print('===================================================')
-    torch.save(model.state_dict(), 'weights/{}/{:0=5}.pth'.format(save_name, index+1))
-        
-    if args.mode =='val' or args.mode == 'test': 
-        break
-    else:     
-        # write tensorboardX
-        train_loss = dict([(task_name, avg_cost[task_name][0]) for task_name in do_task_list])
-        train_acc = dict([(task_name, avg_cost[task_name][1]) for task_name in do_task_list])
-        val_loss = dict([(task_name, avg_cost[task_name][2]) for task_name in do_task_list])
-        val_acc = dict([(task_name, avg_cost[task_name][3]) for task_name in do_task_list])
-        writer.add_scalars('train_loss', train_loss, index+1)
-        writer.add_scalars('train_acc', train_acc, index+1)
-        writer.add_scalars('val_loss', val_loss, index+1)
-        writer.add_scalars('val_acc', val_acc, index+1)
-                    
+
+    if args.mode =='val' or args.mode == 'test': break
+    
+    # write tensorboardX
+    train_loss = dict([(task_name, avg_cost[task_name][0]) for task_name in do_task_list])
+    train_acc = dict([(task_name, avg_cost[task_name][1]) for task_name in do_task_list])
+    val_loss = dict([(task_name, avg_cost[task_name][2]) for task_name in do_task_list])
+    val_acc = dict([(task_name, avg_cost[task_name][3]) for task_name in do_task_list])
+    writer.add_scalars('train_loss', train_loss, index+1)
+    writer.add_scalars('train_acc', train_acc, index+1)
+    writer.add_scalars('val_loss', val_loss, index+1)
+    writer.add_scalars('val_acc', val_acc, index+1)
+                
 if args.mode=='train': writer.close()
 
