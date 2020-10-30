@@ -202,13 +202,14 @@ print('-----All dataset loaded-----')
 # define WRN model
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if args.mode_model=='WideRes':
-    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm).to(device)
+    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='film').to(device)
 elif args.mode_model=='WideRes_mask':
-    model = WideResNet_mask(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm).to(device)
+    # model = WideResNet_mask(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm).to(device)
+    model = WideResNet(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm, version_film='binary').to(device)
 elif args.mode_model=='WideRes_STL':
     model = WideResNet_STL(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc).to(device)
 elif args.mode_model=='WideRes_pretrain':
-    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, with_film=False).to(device)
+    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, with_film=False, version_film='no_film').to(device)
 elif args.mode_model=='ResNet18':
     model = ResNetBaseNet(data_class, args.fc).to(device)
 
