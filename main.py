@@ -68,25 +68,17 @@ else:
 データの初期設定
 ------------------------------------------------------------------------
 '''
+
+'''
+    task_dict：10タスクすべての情報格納した辞書データ
+        do：そのタスクを学習するか
+        num_class：タスクの出力クラス数
+        task_vec：タスク指定ベクトル
+    task_num：全タスク数（=10）．task_dictの長さ
+    do_task_list：実際に学習するタスクのリスト．train/valでは指定タスク，testでは全タスクが選択される．
+'''
+
 data_path = '/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/data/'
-# data_names = ['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd',
-#              'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers']
-# data_classes = [1000, 100, 100, 2, 47, 43, 1623, 10, 101, 102]
-
-
-# if args.version in data_names:
-#     data_name = [args.version]
-#     data_class = [data_classes[data_names.index(args.version)]]
-# elif args.version == 'cifar100_ucf101':
-#     data_name = ['cifar100', 'ucf101']
-#     data_class = [100, 101]  
-# elif args.version == '5tasks':
-#     data_name = ['aircraft', 'cifar100', 'daimlerpedcls', 'dtd', 'gtsrb']
-#     data_class = [100, 100, 2, 47, 43]
-# else:
-#     data_name = ['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd',
-#              'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers']
-#     data_class = [1000, 100, 100, 2, 47, 43, 1623, 10, 101, 102]
 
 task_dict = {
     'imagenet12': {
@@ -133,7 +125,7 @@ task_dict = {
 
 if args.mode == 'train' or args.mode == 'val': # train時は選択したタスクのみを学習
     do_task_list = [name for name,item in task_dict.items() if item['do']==True]
-elif args.mode == 'test': # val時はすべてのタスクを評価
+elif args.mode == 'test': # test時はすべてのタスクを評価
     do_task_list = [name for name,item in task_dict.items()]
     
 task_num = len(task_dict)
@@ -166,7 +158,11 @@ if args.mode == 'train':
 データロード
 ------------------------------------------------------------------------
 '''
-# do_task_listに記載のあるタスクのデータのみロード
+'''
+    データセットは，do_task_listに記載のあるタスクのデータのみロードする．
+    im_train_set：学習データ
+    im_test_set：testと名前がついているが，中身はvalデータ（実際のtestデータは教師ラベルが与えられてないから）
+'''
 im_train_set = {}
 im_test_set = {}
 for task_name in do_task_list:
@@ -189,6 +185,13 @@ print('-----All dataset loaded-----')
 モデルの設定
 ------------------------------------------------------------------------
 '''
+'''
+    modelは基本的にWideResを使用
+        task_dict：モデルに学習させるタスク情報．
+                    追加ですべてのタスクを学習可能にするために，task_dict（10タスク分の情報）をそのまま入れる．
+    DataParallelは，BN使用時は基本的にしない
+    train時のみ，tensorboardに学習結果を書き込む
+'''
 # define WRN model
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 if args.mode_model=='WideRes':
@@ -200,9 +203,6 @@ elif args.mode_model=='WideRes_STL':
 elif args.mode_model=='ResNet18':
     model = ResNetBaseNet(data_class, args.fc).to(device)
 
-
-# random_list =  [1e-3, 1e-4, 1e-5]
-random_list =  [0, 1] # version 3
 if args.random_lr:
     if args.optim=='sgd':
         optimizer = SGD_c(params=[ # lambda:共有率
@@ -301,8 +301,7 @@ if args.random_lr:
                               do_task_list=['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd', 'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers'])
     else:
         print('optimizer not selected.')
-        sys.exit()
-            
+        sys.exit()         
 else:
     if args.optim=='sgd':
         optimizer = optim.SGD(model.parameters(), lr=1e-4, weight_decay=0, momentum=0.9)
@@ -347,7 +346,7 @@ print('Parameter Space: ABS: {:.1f}'.format(count_parameters(model)))
 '''
 # define parameters
 total_epoch = 1000
-first_run = True
+
 # avg_cost = np.zeros([total_epoch, task_num, 4], dtype=np.float32)
 
 # task_vecs = { 
@@ -375,6 +374,17 @@ first_run = True
 学習
 ------------------------------------------------------------------------
 '''
+'''
+出力結果
+    max_acc：あるタスクにおける最高精度．{タスク名: 最高精度, ...}
+    max_acc_epoch：あるタスクにおける最高精度を記録した時のepoch．{タスク名: 最高精度epoch, ...}
+    max_avg_acc：複数タスク全体の最高精度．{タスク名: 最高精度, ...}
+    max_avg_acc_epoch：複数タスク全体が最高精度を記録した時のepoch．int型
+
+    avg_cost：あるepochにおける複数タスク全体の精度．{タスク名: 1x4リスト（[trainロス, train精度, valロス, val精度]）}
+    cost：各batchでのコスト．1x2のリスト[ロス，精度]．
+'''
+
 max_acc = dict([(task_name, 0) for task_name in do_task_list])
 max_acc_epoch = dict([(task_name, 0) for task_name in do_task_list])
 max_avg_acc = dict([(task_name, 0) for task_name in do_task_list])
@@ -406,8 +416,6 @@ for index in range(load_epoch, total_epoch):
                     task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
 
                     train_pred1 = model(train_data, task_name, task_vec)
-
-                    # reset optimizer with zero gradient
                     
                     train_loss1 = model.model_fit(train_pred1, train_label, num_output=task_dict[task_name]['num_class'], device=device)
                     train_loss = torch.mean(train_loss1)
@@ -459,9 +467,7 @@ for index in range(load_epoch, total_epoch):
                     # avg_cost[index][task_name][2:] += cost / test_batch
                     avg_cost[task_name][2:] += cost / test_batch
         
-        # if avg_cost[index][task_name][3] > max_acc[task_name]:
         if avg_cost[task_name][3] > max_acc[task_name]:
-            # max_acc[task_name] = avg_cost[index][task_name][3]
             max_acc[task_name] = avg_cost[task_name][3]
             max_acc_epoch[task_name] = index + 1
         print('EPOCH: {:04d} | DATASET: {:s} || TRAIN: {:.4f} {:.4f} || TEST: {:.4f} {:.4f} || MAX: {:.4f} ({:04d}ep)'
