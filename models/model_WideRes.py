@@ -47,37 +47,38 @@ class film_generator(nn.Module):
         return factor, bias
     
 class film(nn.Module):
-    def __init__(self, norm_nc, mode_norm):
+    def __init__(self, norm_nc, mode_norm, with_film=True):
         super().__init__()
         '''
         ここでbatchかinstanceかを変える
         '''
-        if mode_norm=='bn':
-            self.norm = nn.BatchNorm2d(norm_nc, affine=False)
-        elif mode_norm=='in':
-            self.norm = nn.InstanceNorm2d(norm_nc, affine=False)
+        if self.with_film:
+            if mode_norm=='bn':
+                self.norm = nn.BatchNorm2d(norm_nc, affine=False)
+            elif mode_norm=='in':
+                self.norm = nn.InstanceNorm2d(norm_nc, affine=False)
+        else:
+            self.norm = nn.InstanceNorm2d(norm_nc, affine=True)
             
     def forward(self, x, factor, bias, visualize=False, k=None):
         normalized = self.norm(x)
-#         print(factor)
-#         factor_binary = torch.where(factor > 0, torch.ones(1).cuda(), torch.zeros(1).cuda())
-        out = normalized * factor + bias 
-#         out = normalized * factor_binary + bias
-        if visualize:
-            view_factor = torch.squeeze(factor[0])
-            view_bias = torch.squeeze(bias[0])
-            print(k, factor.shape, bias.shape)
-            # 画像のプロット先の準備
-            fig = plt.figure()
-            plt.bar(range(1, len(view_factor)+1), view_factor.cpu().numpy(), ec='black')
-            plt.ylim(0, 4)
-            plt.title("normal histogram")
-            fig.savefig("/home/yanai-lab/takeda-m/space/jupyter/notebook/Multi-Task-Learning/VisualDecathlon_lr/graph/{}img.png".format(k))
-            fig2 = plt.figure()
-            plt.bar(range(1, len(view_bias)+1), view_bias.cpu().numpy(), ec='black')
-            plt.ylim(-3, 3)
-            plt.title("normal histogram")
-            fig2.savefig("/home/yanai-lab/takeda-m/space/jupyter/notebook/Multi-Task-Learning/VisualDecathlon_lr/graph/{}img_bias.png".format(k))
+        if self.with_film:
+            out = normalized * factor + bias 
+            if visualize:
+                view_factor = torch.squeeze(factor[0])
+                view_bias = torch.squeeze(bias[0])
+                print(k, factor.shape, bias.shape)
+                # 画像のプロット先の準備
+                fig = plt.figure()
+                plt.bar(range(1, len(view_factor)+1), view_factor.cpu().numpy(), ec='black')
+                plt.ylim(0, 4)
+                plt.title("normal histogram")
+                fig.savefig("/home/yanai-lab/takeda-m/space/jupyter/notebook/Multi-Task-Learning/VisualDecathlon_lr/graph/{}img.png".format(k))
+                fig2 = plt.figure()
+                plt.bar(range(1, len(view_bias)+1), view_bias.cpu().numpy(), ec='black')
+                plt.ylim(-3, 3)
+                plt.title("normal histogram")
+                fig2.savefig("/home/yanai-lab/takeda-m/space/jupyter/notebook/Multi-Task-Learning/VisualDecathlon_lr/graph/{}img_bias.png".format(k))
         return out
     
     
@@ -86,15 +87,15 @@ def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=True)
 
 class wide_basic(nn.Module):
-    def __init__(self, in_planes, planes, stride=1, mode_norm='in'):
+    def __init__(self, in_planes, planes, stride=1, mode_norm='in', with_film=True):
         super(wide_basic, self).__init__()
 #         self.bn1 = nn.BatchNorm2d(in_planes)
-        self.film1 = film(in_planes, mode_norm)
+        self.film1 = film(in_planes, mode_norm, with_film)
         self.conv1 = nn.Conv2d(in_planes, planes, kernel_size=3, padding=1, bias=True)
         
 #         self.bn2 = nn.BatrchNorm2d(planes)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=True)
-        self.film2 = film(planes, mode_norm)
+        self.film2 = film(planes, mode_norm, with_film)
 
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != planes:
@@ -112,13 +113,14 @@ class wide_basic(nn.Module):
 
 class WideResNet(nn.Module):
     # def __init__(self, depth, widen_factor, num_classes, fc, mode_norm='in'):
-    def __init__(self, depth, widen_factor, task_dict, fc, mode_norm='in'):
+    def __init__(self, depth, widen_factor, task_dict, fc, mode_norm='bn', with_film=True):
         super(WideResNet, self).__init__()
         self.in_planes = 16
         self.n = int((depth - 4) / 6) # num blocks
         k = widen_factor
         filter = [16, 16 * k, 32 * k, 64 * k]
         self.task_dict = task_dict
+        self.with_film = with_film
         
         self.nc_list = [filter[0], # init conv
                         filter[0],filter[1],filter[1],filter[1],filter[1],filter[1],filter[1],filter[1], # layer1
@@ -126,9 +128,9 @@ class WideResNet(nn.Module):
                         filter[2],filter[3],filter[3],filter[3],filter[3],filter[3],filter[3],filter[3], # layer3
                         filter[3]] # last conv
         self.film_generator = film_generator(sum(self.nc_list), len(self.task_dict), fc)
-        
         # input conv
-        self.film = film(filter[0], mode_norm)
+        self.film = film(filter[0], mode_norm, self.with_film)
+
         self.conv1 = conv3x3(3, filter[0], stride=1)
         
         # layer1
@@ -136,26 +138,26 @@ class WideResNet(nn.Module):
         widen_factor = filter[1]
         stride = 2
         strides = [stride] + [1] * (self.n - 1)
-        self.layer1 = nn.ModuleList([wide_basic(self.in_planes, filter[1], strides[0], mode_norm)])
+        self.layer1 = nn.ModuleList([wide_basic(self.in_planes, filter[1], strides[0], mode_norm, self.with_film)])
         for i in range(1, self.n):
-            self.layer1.append(wide_basic(filter[1], filter[1], strides[i], mode_norm))
+            self.layer1.append(wide_basic(filter[1], filter[1], strides[i], mode_norm, self.with_film))
         
         # layer2
         stride = 2
         strides = [stride] + [1] * (self.n - 1)
-        self.layer2 = nn.ModuleList([wide_basic(filter[1], filter[2], strides[0], mode_norm)])
+        self.layer2 = nn.ModuleList([wide_basic(filter[1], filter[2], strides[0], mode_norm, self.with_film)])
         for i in range(1, self.n):
-            self.layer2.append(wide_basic(filter[2], filter[2], strides[i], mode_norm))
+            self.layer2.append(wide_basic(filter[2], filter[2], strides[i], mode_norm, self.with_film))
             
         # layer3
         stride = 2
         strides = [stride] + [1] * (self.n - 1)
-        self.layer3 = nn.ModuleList([wide_basic(filter[2], filter[3], strides[0], mode_norm)])
+        self.layer3 = nn.ModuleList([wide_basic(filter[2], filter[3], strides[0], mode_norm, self.with_film)])
         for i in range(1, self.n):
-            self.layer3.append(wide_basic(filter[3], filter[3], strides[i], mode_norm))
+            self.layer3.append(wide_basic(filter[3], filter[3], strides[i], mode_norm, self.with_film))
         
 #         self.bn1 = nn.BatchNorm2d(filter[3], momentum=0.9)
-        self.film_last = film(filter[3], mode_norm)
+        self.film_last = film(filter[3], mode_norm, self.with_film)
         
         # output layer
         self.linear = nn.ModuleDict({})

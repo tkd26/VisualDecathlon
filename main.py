@@ -44,7 +44,7 @@ parser.add_argument('--vgg_flowers', action='store_true')
 
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
-parser.add_argument('--mode_model', default='WideRes', choices=['WideRes','WideRes_mask', 'WideRes_STL', 'ResNet18'])
+parser.add_argument('--mode_model', default='WideRes', choices=['WideRes','WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18'])
 parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd_pre', 'adam'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
 parser.add_argument('--fc', type=int, default=5, choices=[1,3,5])
@@ -187,8 +187,15 @@ print('-----All dataset loaded-----')
 '''
 '''
     modelは基本的にWideResを使用
-        task_dict：モデルに学習させるタスク情報．
-                    追加ですべてのタスクを学習可能にするために，task_dict（10タスク分の情報）をそのまま入れる．
+        WideRes：ベーシックモデル．film+lr学習時に使用．
+        WideRes_mask：film（バイナリマスク）+lr学習時に使用
+        WideRes_STL：シングルタスク学習時に使用
+        WideRes_pretrain：プレトレインモデルによるシングルタスク学習時に使用
+                        （出力レイヤがプレトレインモデルと異なり，学習タスクに対応するようになっている．filmはなし）
+                        
+            task_dict：モデルに学習させるタスク情報．
+                        追加ですべてのタスクを学習可能にするために，task_dict（10タスク分の情報）をそのまま入れる．
+
     DataParallelは，BN使用時は基本的にしない
     train時のみ，tensorboardに学習結果を書き込む
 '''
@@ -200,6 +207,8 @@ elif args.mode_model=='WideRes_mask':
     model = WideResNet_mask(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm).to(device)
 elif args.mode_model=='WideRes_STL':
     model = WideResNet_STL(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc).to(device)
+elif args.mode_model=='WideRes_pretrain':
+    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, with_film=False).to(device)
 elif args.mode_model=='ResNet18':
     model = ResNetBaseNet(data_class, args.fc).to(device)
 
