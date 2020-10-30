@@ -45,7 +45,7 @@ parser.add_argument('--vgg_flowers', action='store_true')
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
 parser.add_argument('--mode_model', default='WideRes', choices=['WideRes','WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18'])
-parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd_pre', 'adam'])
+parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd_pre', 'sgd_pre2', 'adam'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
 parser.add_argument('--fc', type=int, default=5, choices=[1,3,5])
 parser.add_argument('--norm', type=str, default='bn', choices=['in', 'bn'])
@@ -309,6 +309,18 @@ if args.random_lr:
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
                               do_task_list=['imagenet12', 'aircraft', 'cifar100', 'daimlerpedcls', 'dtd', 'gtsrb', 'omniglot', 'svhn', 'ucf101', 'vgg-flowers'])
+    elif args.optim=='sgd_pre2': # layer3（lambda=0.0にしたところ）だけimagenetで0.5学習される
+            optimizer = SGD_c(params=[
+                {"params": model.film_generator.parameters(), "lambda": 1.0},
+                {"params": model.film.parameters(), "lambda": 1.0},
+                {"params": model.conv1.parameters(), "lambda": 1.0},
+                {"params": model.layer1.parameters(), "lambda": 1.0},
+                {"params": model.layer2.parameters(), "lambda": 1.0},
+                {"params": model.layer3.parameters(), "lambda": 0.0},
+                {"params": model.film_last.parameters(), "lambda": 1.0},
+                {"params": model.linear.parameters(), "lambda": 1.0},],
+                              lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
+                              do_task_list=['imagenet12', 'dummy'])
     else:
         print('optimizer not selected.')
         sys.exit()         
