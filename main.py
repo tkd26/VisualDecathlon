@@ -21,10 +21,10 @@ from tqdm import tqdm
 from torchvision.transforms import transforms
 
 from sync_batchnorm import convert_model, DataParallelWithCallback
-from models.model_WideRes import WideResNet as WideResNet
-from models.model_WideRes_mask import WideResNet as WideResNet_mask
-from models.model_WideRes_STL import WideResNet as WideResNet_STL
-from models.model_ResNetbase import ResNetBaseNet
+from models.WideRes import WideResNet as WideResNet
+from models.WideRes_mask import WideResNet as WideResNet_mask
+from models.WideRes_STL import WideResNet as WideResNet_STL
+from models.ResNetbase import ResNetBaseNet
 
 from utils.optimizer import *
 from utils.data_transform import *
@@ -209,7 +209,7 @@ elif args.mode_model=='WideRes_mask':
 elif args.mode_model=='WideRes_STL':
     model = WideResNet_STL(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc).to(device)
 elif args.mode_model=='WideRes_pretrain':
-    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, with_film=False, version_film='no_film').to(device)
+    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='no_film').to(device)
 elif args.mode_model=='ResNet18':
     model = ResNetBaseNet(data_class, args.fc).to(device)
 
