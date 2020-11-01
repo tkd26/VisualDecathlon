@@ -161,7 +161,7 @@ class ResNet(nn.Module):
         # loss = x_output_onehot * torch.log(x_pred + 1e-20)
         # return torch.sum(-loss, dim=1)
 
-        loss = nn.CrossEntropyLoss()(x_output, x_pred).to(device)
+        loss = nn.CrossEntropyLoss()(x_pred, x_output).to(device)
         return loss
 
 
