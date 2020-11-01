@@ -25,6 +25,7 @@ from models.WideRes import WideResNet as WideResNet
 from models.WideRes_mask import WideResNet as WideResNet_mask
 from models.WideRes_STL import WideResNet as WideResNet_STL
 from models.ResNetbase import ResNetBaseNet
+from models.ResNet import resnet26
 
 from utils.optimizer import *
 from utils.data_transform import *
@@ -44,8 +45,8 @@ parser.add_argument('--vgg_flowers', action='store_true')
 
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
-parser.add_argument('--mode_model', default='WideRes', choices=['WideRes','WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18'])
-parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd_pre', 'sgd_pre2', 'adam'])
+parser.add_argument('--mode_model', default='WideRes', choices=['WideRes','WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18', 'ResNet26'])
+parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd_pre', 'sgd_pre2', 'adam'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
 parser.add_argument('--fc', type=int, default=5, choices=[1,3,5])
 parser.add_argument('--norm', type=str, default='bn', choices=['in', 'bn'])
@@ -205,13 +206,15 @@ if args.mode_model=='WideRes':
     model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='film').to(device)
 elif args.mode_model=='WideRes_mask':
     # model = WideResNet_mask(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm).to(device)
-    model = WideResNet(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm, version_film='binary').to(device)
+    model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='binary').to(device)
 elif args.mode_model=='WideRes_STL':
-    model = WideResNet_STL(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc).to(device)
+    model = WideResNet_STL(depth=28, widen_factor=4, num_classes=[task_dict[do_task_list[0]]['num_class']], fc=args.fc).to(device)
 elif args.mode_model=='WideRes_pretrain':
     model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='no_film').to(device)
 elif args.mode_model=='ResNet18':
     model = ResNetBaseNet(data_class, args.fc).to(device)
+elif args.mode_model=='ResNet26':
+    model = resnet26(num_classes=[task_dict[do_task_list[0]]['num_class']]).to(device)
 
 if args.random_lr:
     if args.optim=='sgd':
@@ -331,6 +334,8 @@ else:
         optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=5e-5, nesterov=True, momentum=0.9)
     elif args.optim=='sgd3':
         optimizer = optim.SGD(model.parameters(), lr=0.01, weight_decay=0, nesterov=True, momentum=0.5)
+    elif args.optim=='sgd4': # res adapterのやつ
+        optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=1, momentum=0.9)
     elif args.optim=='adam':
         optimizer = optim.Adam(model.parameters(), lr=1e-4)
     else:
@@ -437,7 +442,7 @@ for index in range(load_epoch, total_epoch):
                     batch = train_data.shape[0]
                     task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
 
-                    train_pred1 = model(train_data, task_name, task_vec)
+                    train_pred1 = model(train_data, task_name=task_name, task_vec=task_vec)
                     
                     train_loss1 = model.model_fit(train_pred1, train_label, num_output=task_dict[task_name]['num_class'], device=device)
                     train_loss = torch.mean(train_loss1)
@@ -475,7 +480,7 @@ for index in range(load_epoch, total_epoch):
                     batch = test_data.shape[0]
                     task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
 
-                    test_pred1 = model(test_data, task_name, task_vec, visualize=args.visualize)
+                    test_pred1 = model(test_data, task_name=task_name, task_vec=task_vec, visualize=args.visualize)
 
                     test_loss1 = model.model_fit(test_pred1, test_label, num_output=task_dict[task_name]['num_class'], device=device)
                     test_loss = torch.mean(test_loss1)
