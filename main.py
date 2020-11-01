@@ -29,6 +29,7 @@ from models.ResNet import resnet26
 
 from utils.optimizer import *
 from utils.data_transform import *
+from utils.util import *
 
 parser = argparse.ArgumentParser(description='Multi-task: Attention Network')
 
@@ -46,7 +47,7 @@ parser.add_argument('--vgg_flowers', action='store_true')
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
 parser.add_argument('--mode_model', default='WideRes', choices=['WideRes','WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18', 'ResNet26'])
-parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd_pre', 'sgd_pre2', 'adam'])
+parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd_pre', 'sgd_pre2', 'adam', 'adam2', 'adam3'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
 parser.add_argument('--fc', type=int, default=5, choices=[1,3,5])
 parser.add_argument('--norm', type=str, default='bn', choices=['in', 'bn'])
@@ -334,10 +335,15 @@ else:
         optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=5e-5, nesterov=True, momentum=0.9)
     elif args.optim=='sgd3':
         optimizer = optim.SGD(model.parameters(), lr=0.01, weight_decay=0, nesterov=True, momentum=0.5)
-    elif args.optim=='sgd4': # res adapterのやつ
-        optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=1, momentum=0.9)
+    elif args.optim=='sgd4':
+        optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=5e-4, momentum=0.9)
+        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80, 130], gamma=0.1)
     elif args.optim=='adam':
         optimizer = optim.Adam(model.parameters(), lr=1e-4)
+    elif args.optim=='adam2':
+        optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    elif args.optim=='adam3':
+        optimizer = optim.Adam(model.parameters(), lr=1e-2)
     else:
         print('optimizer not selected.')
         sys.exit()
@@ -421,6 +427,9 @@ max_avg_acc_epoch = 0
 for index in range(load_epoch, total_epoch):
     avg_cost = dict([(task_name, [0,0,0,0]) for task_name in do_task_list])
 
+    if args.optim=='sgd4':
+        scheduler.step()
+
     for task_name in do_task_list:
         
         cost = np.zeros(2, dtype=np.float32)
@@ -433,6 +442,8 @@ for index in range(load_epoch, total_epoch):
             with torch.set_grad_enabled(True):
                 optimizer.zero_grad()
                 
+                top1 = AverageMeter() # add
+
                 for i in range(train_batch):
                     
                     train_data, train_label = train_dataset.next()
@@ -444,8 +455,8 @@ for index in range(load_epoch, total_epoch):
 
                     train_pred1 = model(train_data, task_name=task_name, task_vec=task_vec)
                     
-                    train_loss1 = model.model_fit(train_pred1, train_label, num_output=task_dict[task_name]['num_class'], device=device)
-                    train_loss = torch.mean(train_loss1)
+                    train_loss = model.model_fit(train_pred1, train_label, num_output=task_dict[task_name]['num_class'], device=device)
+                    # train_loss = torch.mean(train_loss1)
                     train_loss.backward()
                     if args.random_lr:
                         optimizer.step(task_name=task_name)
@@ -457,7 +468,8 @@ for index in range(load_epoch, total_epoch):
                     train_predict_label1 = train_pred1.data.max(1)[1]
                     train_acc1 = train_predict_label1.eq(train_label).sum().item() / train_data.shape[0]
 
-                    cost[0] = torch.mean(train_loss1).item()
+                    # cost[0] = torch.mean(train_loss1).item()
+                    cost[0] = train_loss.item()
                     cost[1] = train_acc1
                     # avg_cost[index][task_name][0:2] += cost / train_batch
                     avg_cost[task_name][0:2] += cost / train_batch
@@ -482,14 +494,15 @@ for index in range(load_epoch, total_epoch):
 
                     test_pred1 = model(test_data, task_name=task_name, task_vec=task_vec, visualize=args.visualize)
 
-                    test_loss1 = model.model_fit(test_pred1, test_label, num_output=task_dict[task_name]['num_class'], device=device)
-                    test_loss = torch.mean(test_loss1)
+                    test_loss = model.model_fit(test_pred1, test_label, num_output=task_dict[task_name]['num_class'], device=device)
+                    # test_loss = torch.mean(test_loss)
 
                     # calculate testing loss and accuracy
                     test_predict_label1 = test_pred1.data.max(1)[1]
                     test_acc1 = test_predict_label1.eq(test_label).sum().item() / test_data.shape[0]
 
-                    cost[0] = torch.mean(test_loss1).item()
+                    # cost[0] = torch.mean(test_loss1).item()
+                    cost[0] = test_loss.item()
                     cost[1] = test_acc1
                     # avg_cost[index][task_name][2:] += cost / test_batch
                     avg_cost[task_name][2:] += cost / test_batch
