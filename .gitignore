@@ -12,3 +12,4 @@ weights_nonpretrain
 *.txt
 *.ipynb
 *.json
+mv_data.sh

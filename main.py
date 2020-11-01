@@ -301,6 +301,18 @@ if args.random_lr:
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
                               do_task_list=do_task_list)
+    elif args.optim=='sgd4':
+            optimizer = SGD_c(params=[
+                {"params": model.film_generator.parameters(), "lambda": 1.0},
+                {"params": model.film.parameters(), "lambda": 1.0},
+                {"params": model.conv1.parameters(), "lambda": 1.0},
+                {"params": model.layer1.parameters(), "lambda": 1.0},
+                {"params": model.layer2.parameters(), "lambda": 1.0},
+                {"params": model.layer3.parameters(), "lambda": 0.5},
+                {"params": model.film_last.parameters(), "lambda": 1.0},
+                {"params": model.linear.parameters(), "lambda": 1.0},],
+                              lr=0.1, weight_decay=5e-4, momentum=0.9,
+                              do_task_list=do_task_list)
     elif args.optim=='sgd_pre':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
@@ -337,7 +349,7 @@ else:
         optimizer = optim.SGD(model.parameters(), lr=0.01, weight_decay=0, nesterov=True, momentum=0.5)
     elif args.optim=='sgd4':
         optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=5e-4, momentum=0.9)
-        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[80, 130], gamma=0.1)
+        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[150, 230], gamma=0.1) # [80, 130]
     elif args.optim=='adam':
         optimizer = optim.Adam(model.parameters(), lr=1e-4)
     elif args.optim=='adam2':
@@ -429,6 +441,9 @@ for index in range(load_epoch, total_epoch):
 
     if args.optim=='sgd4':
         scheduler.step()
+    elif args.optim=='sgd4' and args.random_lr:
+        if index==80: optimizer.update(0.01)
+        elif index==130: optimizer.update(0.001)
 
     for task_name in do_task_list:
         
@@ -506,6 +521,11 @@ for index in range(load_epoch, total_epoch):
                     cost[1] = test_acc1
                     # avg_cost[index][task_name][2:] += cost / test_batch
                     avg_cost[task_name][2:] += cost / test_batch
+
+                    _, predicted = torch.max(test_pred1.data, 1)
+                    correct = predicted.eq(test_label.data).cpu().sum()
+                    (top1).update(correct*100./test_label.size(0), test_label.size(0))    
+            print(top1.avg*0.01)
         
         if avg_cost[task_name][3] > max_acc[task_name]:
             max_acc[task_name] = avg_cost[task_name][3]
