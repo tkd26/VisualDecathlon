@@ -349,7 +349,7 @@ else:
         optimizer = optim.SGD(model.parameters(), lr=0.01, weight_decay=0, nesterov=True, momentum=0.5)
     elif args.optim=='sgd4':
         optimizer = optim.SGD(model.parameters(), lr=0.1, weight_decay=5e-4, momentum=0.9)
-        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[150, 230], gamma=0.1) # [80, 130]
+        scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[300, 500], gamma=0.1) # [80, 130][150, 230](c)[200, 400]
     elif args.optim=='adam':
         optimizer = optim.Adam(model.parameters(), lr=1e-4)
     elif args.optim=='adam2':
@@ -521,11 +521,6 @@ for index in range(load_epoch, total_epoch):
                     cost[1] = test_acc1
                     # avg_cost[index][task_name][2:] += cost / test_batch
                     avg_cost[task_name][2:] += cost / test_batch
-
-                    _, predicted = torch.max(test_pred1.data, 1)
-                    correct = predicted.eq(test_label.data).cpu().sum()
-                    (top1).update(correct*100./test_label.size(0), test_label.size(0))    
-            print(top1.avg*0.01)
         
         if avg_cost[task_name][3] > max_acc[task_name]:
             max_acc[task_name] = avg_cost[task_name][3]
