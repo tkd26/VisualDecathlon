@@ -239,6 +239,3 @@ class WideResNet(nn.Module):
         loss = x_output_onehot * torch.log(x_pred + 1e-20)
         loss = torch.sum(-loss, dim=1)
         return torch.mean(loss)
-
-        # loss = nn.CrossEntropyLoss()(x_pred, x_output).to(device)
-        # return loss
