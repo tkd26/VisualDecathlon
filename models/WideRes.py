@@ -5,8 +5,9 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 import matplotlib
-matplotlib.use('Agg') # -----(1)
+matplotlib.use('Agg') 
 import matplotlib.pyplot as plt
+import math
 
 class film_generator(nn.Module):
     def __init__(self, norm_nc, cond_nc, fc=1, fc_nc=64):
@@ -47,7 +48,7 @@ class film_generator(nn.Module):
         return factor, bias
     
 class film(nn.Module):
-    def __init__(self, norm_nc, mode_norm, version_film='film'):
+    def __init__(self, norm_nc, mode_norm='bn', version_film='film'):
         super().__init__()
         '''
         ここでbatchかinstanceかを変える
@@ -60,7 +61,7 @@ class film(nn.Module):
             elif mode_norm=='in':
                 self.norm = nn.InstanceNorm2d(norm_nc, affine=False)
         elif self.version_film=='no_film':
-            self.norm = nn.InstanceNorm2d(norm_nc, affine=True)
+            self.norm = nn.BatchNorm2d(norm_nc, affine=True)
             
     def forward(self, x, factor, bias, visualize=False, k=None):
         normalized = self.norm(x)
@@ -119,7 +120,6 @@ class wide_basic(nn.Module):
 
 
 class WideResNet(nn.Module):
-    # def __init__(self, depth, widen_factor, num_classes, fc, mode_norm='in'):
     def __init__(self, depth, widen_factor, task_dict, fc, mode_norm='bn', version_film='film'):
         super(WideResNet, self).__init__()
         self.in_planes = 16
@@ -173,6 +173,16 @@ class WideResNet(nn.Module):
                 nn.Linear(filter[3], item['num_class']),
                 nn.Softmax(dim=1))
 
+        # 重みとバイアスの初期化
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
+                m.weight.data.normal_(0, math.sqrt(2. / n))
+            elif isinstance(m, nn.BatchNorm2d):
+                if m.affine == True:
+                    m.weight.data.fill_(1)
+                    m.bias.data.zero_()
+
     def forward(self, x, task_name, task_vec, visualize=False):
         # film generator
         factor, bias = self.film_generator(task_vec)
@@ -189,22 +199,13 @@ class WideResNet(nn.Module):
         g_encoder[0] = self.film(self.conv1(x), factor_list[0], bias_list[0])
         
         # layer1
-#         param_idx += 1
         g_encoder[1] = self.layer1[0](g_encoder[0], factor_list[1:3], bias_list[1:3])
-#         for i in range(1, self.n):
-#             param_idx += 2
-#             g_encoder[1] = self.layer1[i](g_encoder[1], factor_list[param_idx:param_idx+2], bias_list[param_idx:param_idx+2])
+
         g_encoder[1] = self.layer1[1](g_encoder[1], factor_list[3:5], bias_list[3:5])
         g_encoder[1] = self.layer1[2](g_encoder[1], factor_list[5:7], bias_list[5:7])
         g_encoder[1] = self.layer1[3](g_encoder[1], factor_list[7:9], bias_list[7:9])
                 
         # layer2   
-#         param_idx += 2
-#         g_encoder[2] = self.layer2[0](g_encoder[1], factor_list[param_idx:param_idx+2], bias_list[param_idx:param_idx+2])
-#         for i in range(1, self.n):
-#             param_idx += 2
-#             g_encoder[2] = self.layer2[i](g_encoder[2], factor_list[param_idx:param_idx+2], bias_list[param_idx:param_idx+2])
-        
         g_encoder[2] = self.layer2[0](g_encoder[1], factor_list[9:11], bias_list[9:11])
         g_encoder[2] = self.layer2[1](g_encoder[2], factor_list[11:13], bias_list[11:13],  visualize=visualize, k=task_name)
         g_encoder[2] = self.layer2[2](g_encoder[2], factor_list[13:15], bias_list[13:15])
@@ -212,11 +213,6 @@ class WideResNet(nn.Module):
         
     
         # layer3   
-#         param_idx += 2
-#         g_encoder[3] = self.layer3[0](g_encoder[2], factor_list[param_idx:param_idx+2], bias_list[param_idx:param_idx+2])
-#         for i in range(1, self.n):
-#             param_idx += 2
-#             g_encoder[3] = self.layer3[i](g_encoder[3], factor_list[param_idx:param_idx+2], bias_list[param_idx:param_idx+2])
         g_encoder[3] = self.layer3[0](g_encoder[2], factor_list[17:19], bias_list[17:19])
         g_encoder[3] = self.layer3[1](g_encoder[3], factor_list[19:21], bias_list[19:21])
         g_encoder[3] = self.layer3[2](g_encoder[3], factor_list[21:23], bias_list[21:23])
