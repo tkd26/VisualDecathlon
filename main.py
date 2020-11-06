@@ -45,8 +45,10 @@ parser.add_argument('--vgg_flowers', action='store_true')
 
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
-parser.add_argument('--mode_model', default='WideRes', choices=['WideRes', 'WideRes2', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18', 'ResNet26'])
-parser.add_argument('--optim', default='adam', choices=['sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd4-2', 'sgd_pre', 'sgd_pre2', 'adam', 'adam2', 'adam3'])
+parser.add_argument('--mode_model', default='WideRes', choices=[
+    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18', 'ResNet26'])
+parser.add_argument('--optim', default='adam', choices=[
+    'sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd4-2', 'sgd_pre', 'sgd_pre2', 'adam', 'adam2', 'adam3'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
 parser.add_argument('--fc', type=int, default=5, choices=[1,3,5])
 parser.add_argument('--norm', type=str, default='bn', choices=['in', 'bn'])
@@ -188,8 +190,9 @@ print('-----All dataset loaded-----')
 '''
 '''
     modelは基本的にWideResを使用
-        WideRes：ベーシックモデル．film+lr学習時に使用．
+        WideRes：ベーシックモデル．film+lr学習時に使用．res adaptersのresnet28 scratchモデルとほぼ同じ．
         WideRes2：ベーシックモデルのwidthを2倍にしたモデル
+        WideRes2_dropout：dropoutありのWideRes2
         WideRes_mask：film（バイナリマスク）+lr学習時に使用
         WideRes_STL：シングルタスク学習時に使用
         WideRes_pretrain：プレトレインモデルによるシングルタスク学習時に使用
@@ -207,6 +210,8 @@ if args.mode_model=='WideRes':
     model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='film').to(device)
 elif args.mode_model=='WideRes2':
     model = WideResNet(depth=28, widen_factor=8, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='film').to(device)
+elif args.mode_model=='WideRes2_dropout':
+    model = WideResNet(depth=28, widen_factor=8, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='film', dropout=True).to(device)
 elif args.mode_model=='WideRes_mask':
     # model = WideResNet_mask(depth=28, widen_factor=4, num_classes=data_class, fc=args.fc, mode_norm=args.norm).to(device)
     model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='binary').to(device)

@@ -92,10 +92,11 @@ class film(nn.Module):
     
 
 def conv3x3(in_planes, out_planes, stride=1):
+    # res adaptersのresnet26ではbias=False
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=True)
 
 class wide_basic(nn.Module):
-    def __init__(self, in_planes, planes, stride=1, mode_norm='in', version_film='film'):
+    def __init__(self, in_planes, planes, stride=1, mode_norm='in', version_film='film', dropout=False):
         super(wide_basic, self).__init__()
 #         self.bn1 = nn.BatchNorm2d(in_planes)
         self.film1 = film(in_planes, mode_norm, version_film)
@@ -111,16 +112,20 @@ class wide_basic(nn.Module):
                 nn.Conv2d(in_planes, planes, kernel_size=1, stride=stride, bias=True),
             )
 
+        self.dropout = dropout
+
     def forward(self, x, factor=None, bias=None, visualize=False, k=None):
         out1 = self.conv1(F.relu(self.film1(x, factor[0], bias[0], visualize=visualize, k=k)))
-        out2 = self.conv2(F.relu(self.film2(out1, factor[1], bias[1])))
+        if self.dropout:
+            out2 = self.conv2(F.dropout2d(F.relu(self.film2(out1, factor[1], bias[1])), p=0.3))
+        else:
+            out2 = self.conv2(F.relu(self.film2(out1, factor[1], bias[1])))
         out2 += self.shortcut(x.contiguous())
-
         return out2
 
 
 class WideResNet(nn.Module):
-    def __init__(self, depth, widen_factor, task_dict, fc, mode_norm='bn', version_film='film'):
+    def __init__(self, depth, widen_factor, task_dict, fc, mode_norm='bn', version_film='film', dropout=False):
         super(WideResNet, self).__init__()
         self.in_planes = 16
         self.n = int((depth - 4) / 6) # num blocks
@@ -145,23 +150,23 @@ class WideResNet(nn.Module):
         widen_factor = filter[1]
         stride = 2
         strides = [stride] + [1] * (self.n - 1)
-        self.layer1 = nn.ModuleList([wide_basic(self.in_planes, filter[1], strides[0], mode_norm, self.version_film)])
+        self.layer1 = nn.ModuleList([wide_basic(self.in_planes, filter[1], strides[0], mode_norm, self.version_film, dropout)])
         for i in range(1, self.n):
-            self.layer1.append(wide_basic(filter[1], filter[1], strides[i], mode_norm, self.version_film))
+            self.layer1.append(wide_basic(filter[1], filter[1], strides[i], mode_norm, self.version_film, dropout))
         
         # layer2
         stride = 2
         strides = [stride] + [1] * (self.n - 1)
-        self.layer2 = nn.ModuleList([wide_basic(filter[1], filter[2], strides[0], mode_norm, self.version_film)])
+        self.layer2 = nn.ModuleList([wide_basic(filter[1], filter[2], strides[0], mode_norm, self.version_film, dropout)])
         for i in range(1, self.n):
-            self.layer2.append(wide_basic(filter[2], filter[2], strides[i], mode_norm, self.version_film))
+            self.layer2.append(wide_basic(filter[2], filter[2], strides[i], mode_norm, self.version_film, dropout))
             
         # layer3
         stride = 2
         strides = [stride] + [1] * (self.n - 1)
-        self.layer3 = nn.ModuleList([wide_basic(filter[2], filter[3], strides[0], mode_norm, self.version_film)])
+        self.layer3 = nn.ModuleList([wide_basic(filter[2], filter[3], strides[0], mode_norm, self.version_film, dropout)])
         for i in range(1, self.n):
-            self.layer3.append(wide_basic(filter[3], filter[3], strides[i], mode_norm, self.version_film))
+            self.layer3.append(wide_basic(filter[3], filter[3], strides[i], mode_norm, self.version_film, dropout))
         
 #         self.bn1 = nn.BatchNorm2d(filter[3], momentum=0.9)
         self.film_last = film(filter[3], mode_norm, self.version_film)
