@@ -25,6 +25,7 @@ from models.WideRes import WideResNet as WideResNet
 from models.WideRes_mask import WideResNet as WideResNet_mask
 from models.WideRes_STL import WideResNet as WideResNet_STL
 from models.ResNet import resnet26
+from models.WideRes_reparam import WideResNet as WideResNet_reparam
 
 from utils.optimizer import *
 from utils.data_transform import *
@@ -46,7 +47,7 @@ parser.add_argument('--vgg_flowers', action='store_true')
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
 parser.add_argument('--mode_model', default='WideRes', choices=[
-    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet18', 'ResNet26'])
+    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet26', 'WideRes_reparam'])
 parser.add_argument('--optim', default='adam', choices=[
     'sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd4-2', 'sgd_pre', 'sgd_pre2', 'adam', 'adam2', 'adam3'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
@@ -221,6 +222,8 @@ elif args.mode_model=='WideRes_pretrain':
     model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='no_film').to(device)
 elif args.mode_model=='ResNet26':
     model = resnet26(num_classes=[task_dict[do_task_list[0]]['num_class']]).to(device)
+elif args.mode_model=='WideRes_reparam':
+    model = WideResNet_reparam(depth=28, widen_factor=4, task_dict=task_dict, mode_norm=args.norm, dropout=False).to(device)
 
 if args.random_lr:
     if args.optim=='sgd':
