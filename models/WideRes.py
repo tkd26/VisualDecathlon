@@ -96,7 +96,7 @@ def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=True)
 
 class wide_basic(nn.Module):
-    def __init__(self, in_planes, planes, stride=1, mode_norm='in', version_film='film', dropout=False):
+    def __init__(self, in_planes, planes, stride=1, mode_norm='in', version_film='film', dropout):
         super(wide_basic, self).__init__()
 #         self.bn1 = nn.BatchNorm2d(in_planes)
         self.film1 = film(in_planes, mode_norm, version_film)
