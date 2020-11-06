@@ -24,7 +24,6 @@ from sync_batchnorm import convert_model, DataParallelWithCallback
 from models.WideRes import WideResNet as WideResNet
 from models.WideRes_mask import WideResNet as WideResNet_mask
 from models.WideRes_STL import WideResNet as WideResNet_STL
-from models.ResNetbase import ResNetBaseNet
 from models.ResNet import resnet26
 
 from utils.optimizer import *
@@ -190,6 +189,7 @@ print('-----All dataset loaded-----')
 '''
     modelは基本的にWideResを使用
         WideRes：ベーシックモデル．film+lr学習時に使用．
+        WideRes2：ベーシックモデルのwidthを2倍にしたモデル
         WideRes_mask：film（バイナリマスク）+lr学習時に使用
         WideRes_STL：シングルタスク学習時に使用
         WideRes_pretrain：プレトレインモデルによるシングルタスク学習時に使用
@@ -214,8 +214,6 @@ elif args.mode_model=='WideRes_STL':
     model = WideResNet_STL(depth=28, widen_factor=4, num_classes=[task_dict[do_task_list[0]]['num_class']], fc=args.fc).to(device)
 elif args.mode_model=='WideRes_pretrain':
     model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='no_film').to(device)
-elif args.mode_model=='ResNet18':
-    model = ResNetBaseNet(data_class, args.fc).to(device)
 elif args.mode_model=='ResNet26':
     model = resnet26(num_classes=[task_dict[do_task_list[0]]['num_class']]).to(device)
 
