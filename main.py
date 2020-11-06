@@ -447,11 +447,11 @@ max_avg_acc_epoch = 0
 for index in range(load_epoch, total_epoch):
     avg_cost = dict([(task_name, [0,0,0,0]) for task_name in do_task_list])
 
-    if args.optim=='sgd4':
-        scheduler.step()
-    elif args.optim=='sgd4' and args.random_lr:
+    if args.optim=='sgd4' and args.random_lr:
         if index==80: optimizer.update(0.01)
         elif index==130: optimizer.update(0.001)
+    elif args.optim=='sgd4':
+        scheduler.step()
 
     for task_name in do_task_list:
         
