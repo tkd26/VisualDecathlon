@@ -129,8 +129,6 @@ task_dict = {
 
 if args.mode == 'train' or args.mode == 'val': # train時は選択したタスクのみを学習
     do_task_list = [name for name,item in task_dict.items() if item['do']==True]
-elif args.mode == 'test': # test時はすべてのタスクを評価
-    do_task_list = [name for name,item in task_dict.items()]
     
 task_num = len(task_dict)
 
@@ -165,21 +163,27 @@ if args.mode == 'train':
 '''
     データセットは，do_task_listに記載のあるタスクのデータのみロードする．
     im_train_set：学習データ
-    im_test_set：testと名前がついているが，中身はvalデータ（実際のtestデータは教師ラベルが与えられてないから）
+    im_val_set：valデータ
 '''
 im_train_set = {}
-im_test_set = {}
+im_val_set = {}
 for task_name in do_task_list:
     im_train_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/train',
                                                   transform=data_transform(data_path,task_name)),
                                                   batch_size=args.batch_size,
                                                   shuffle=True,
                                                   num_workers=4, pin_memory=True)
-    im_test_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/val',
+    im_val_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/val',
                                                  transform=data_transform(data_path,task_name, train=False)),
                                                  batch_size=args.batch_size,
                                                  shuffle=False,
                                                  num_workers=4, pin_memory=True)
+    if args.mode == 'test':
+        im_test_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/test',
+                                                    transform=data_transform(data_path,task_name, train=False)),
+                                                    batch_size=args.batch_size,
+                                                    shuffle=False,
+                                                    num_workers=4, pin_memory=True)
     print('{} loaded'.format(task_name))
 print('-----All dataset loaded-----')
 
@@ -448,6 +452,8 @@ max_acc_epoch = dict([(task_name, 0) for task_name in do_task_list])
 max_avg_acc = dict([(task_name, 0) for task_name in do_task_list])
 max_avg_acc_epoch = 0
 
+ans = {} # testの答えを格納
+
 # running
 for index in range(load_epoch, total_epoch):
     avg_cost = dict([(task_name, [0,0,0,0]) for task_name in do_task_list])
@@ -506,43 +512,93 @@ for index in range(load_epoch, total_epoch):
 
                     
         if args.mode == 'train' or args.mode == 'val' or args.mode == 'test':
-            # evaluating test data
+            # evaluating val data
             print('val')
             with torch.no_grad():
                 model.eval()
-                test_dataset = iter(im_test_set[task_name])
-                test_batch = len(test_dataset)
-                for i in range(test_batch):
-                    test_data, test_label = test_dataset.next()
-                    test_label = test_label.type(torch.LongTensor)
-                    test_data, test_label = test_data.to(device), test_label.to(device)
+                val_dataset = iter(im_val_set[task_name])
+                val_batch = len(val_dataset)
+                for i in range(val_batch):
+                    val_data, val_label = val_dataset.next()
+                    val_label = val_label.type(torch.LongTensor)
+                    val_data, val_label = val_data.to(device), val_label.to(device)
 
-                    batch = test_data.shape[0]
+                    batch = val_data.shape[0]
                     task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
 
-                    test_pred1 = model(test_data, task_name=task_name, task_vec=task_vec, visualize=args.visualize)
+                    val_pred1 = model(val_data, task_name=task_name, task_vec=task_vec, visualize=args.visualize)
 
-                    test_loss = model.model_fit(test_pred1, test_label, num_output=task_dict[task_name]['num_class'], device=device)
-                    # test_loss = torch.mean(test_loss)
+                    val_loss = model.model_fit(val_pred1, val_label, num_output=task_dict[task_name]['num_class'], device=device)
+                    # val_loss = torch.mean(val_loss)
 
-                    # calculate testing loss and accuracy
-                    test_predict_label1 = test_pred1.data.max(1)[1]
-                    test_acc1 = test_predict_label1.eq(test_label).sum().item() / test_data.shape[0]
+                    # calculate valing loss and accuracy
+                    val_predict_label1 = val_pred1.data.max(1)[1]
+                    val_acc1 = val_predict_label1.eq(val_label).sum().item() / val_data.shape[0]
 
-                    # cost[0] = torch.mean(test_loss1).item()
-                    cost[0] = test_loss.item()
-                    cost[1] = test_acc1
-                    # avg_cost[index][task_name][2:] += cost / test_batch
-                    avg_cost[task_name][2:] += cost / test_batch
+                    # cost[0] = torch.mean(val_loss1).item()
+                    cost[0] = val_loss.item()
+                    cost[1] = val_acc1
+                    # avg_cost[index][task_name][2:] += cost / val_batch
+                    avg_cost[task_name][2:] += cost / val_batch
         
         if avg_cost[task_name][3] > max_acc[task_name]:
             max_acc[task_name] = avg_cost[task_name][3]
             max_acc_epoch[task_name] = index + 1
-        print('EPOCH: {:04d} | DATASET: {:s} || TRAIN: {:.4f} {:.4f} || TEST: {:.4f} {:.4f} || MAX: {:.4f} ({:04d}ep)'
+            
+        print('EPOCH: {:04d} | DATASET: {:s} || TRAIN: {:.4f} {:.4f} || VAL: {:.4f} {:.4f} || MAX: {:.4f} ({:04d}ep)'
               .format(index+1, task_name,
                       avg_cost[task_name][0], avg_cost[task_name][1],
                       avg_cost[task_name][2], avg_cost[task_name][3],
                       max_acc[task_name], max_acc_epoch[task_name]))
+
+
+        if args.mode == 'test':
+            # evaluating test data
+            print('test')
+            with torch.no_grad():
+                model.eval()
+                test_dataset = iter(im_test_set[task_name])
+                test_batch = len(test_dataset)
+                test_label = []
+
+                if task_name in task_dict.keys(): 
+
+                    print('Evaluating DATASET: {} ...'.format(task_name))
+                    for i in range(test_batch):
+                        test_data, test_label = test_dataset.next()
+                        test_label = test_label.type(torch.LongTensor)
+                        test_data, test_label = test_data.to(device), test_label.to(device)
+
+                        batch = test_data.shape[0]
+                        task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
+
+                        test_pred1 = model(test_data, task_name=task_name, task_vec=task_vec, visualize=args.visualize)
+
+                        test_loss = model.model_fit(test_pred1, test_label, num_output=task_dict[task_name]['num_class'], device=device)
+
+                        test_predict_label1 = test_pred1.data.max(1)[1]
+                        test_pred = test_predict.cpu().numpy()
+                        test_label.extend(test_pred)
+                    ans[task_name] = test_label
+
+                else:
+
+                    print('PASS DATASET: {} ...'.format(task_name))
+                    for i in range(test_batch):
+                        test_data, _ = test_dataset.next()
+                        batch_len = test_data.shape[0]
+                        test_label.extend([0]*batch_len)
+                    ans[task_name] = test_label
+
+                print('Evaluating DATASET: {:s} ...'.format(all_data_name[k]))
+
+    if args.mode == 'test':
+        pickle_out = open("ans.pickle", "wb")
+        pickle.dump(ans, pickle_out)
+        pickle_out.close()
+        break
+
+    # 最大スコアを表示
     if sum(item[3] for item in avg_cost.values()) > sum(max_avg_acc.values()):
         for task_name in avg_cost.keys():
             max_avg_acc[task_name] = avg_cost[task_name][3]
@@ -554,7 +610,7 @@ for index in range(load_epoch, total_epoch):
     
     print('===================================================')
 
-    if args.mode =='val' or args.mode == 'test': break
+    if args.mode =='val': break
     
     # write tensorboardX
     train_loss = dict([(task_name, avg_cost[task_name][0]) for task_name in do_task_list])
