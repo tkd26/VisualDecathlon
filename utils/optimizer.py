@@ -14,11 +14,12 @@ class SGD_c(SGD):
         super().__init__(params, lr=lr, momentum=momentum, dampening=dampening,
                 weight_decay=weight_decay, nesterov=nesterov)
         
+        self.do_task_list = do_task_list
         self.ch_lrs_dict = {}
         self.ch_lrs = []
         count = 0
             
-        for task_idx,task_name in enumerate(do_task_list):
+        for task_idx,task_name in enumerate(self.do_task_list):
             for group in self.param_groups:
                 ch_lrs = []
                 for p in group['params']:
@@ -26,13 +27,13 @@ class SGD_c(SGD):
                         ch_lr = [lr] * p.shape[0]
                     elif group['lambda'] == 0.0:
                         ch_lr = [0] * p.shape[0]
-                        ch_indexes = torch.linspace(0, p.shape[0], len(do_task_list)+1, dtype=int)
+                        ch_indexes = torch.linspace(0, p.shape[0], len(self.do_task_list)+1, dtype=int)
                         ch_lr[ch_indexes[task_idx]:ch_indexes[task_idx+1]] = [lr] * (ch_indexes[task_idx+1] - ch_indexes[task_idx])
                     else:
                         ch_lr = [0] * p.shape[0]
                         share_ch = int(p.shape[0] * group['lambda'])
                         ch_lr[:share_ch] = [lr] * share_ch
-                        ch_indexes = torch.linspace(share_ch, p.shape[0], len(do_task_list)+1, dtype=int)
+                        ch_indexes = torch.linspace(share_ch, p.shape[0], len(self.do_task_list)+1, dtype=int)
                         ch_lr[ch_indexes[task_idx]:ch_indexes[task_idx+1]] = [lr] * (ch_indexes[task_idx+1] - ch_indexes[task_idx])
                         
                     ch_lrs += [ch_lr] # 各グループのレイヤ数*各レイヤのチャネル数
@@ -46,7 +47,7 @@ class SGD_c(SGD):
         self.ch_lrs = []
         count = 0
             
-        for task_idx,task_name in enumerate(do_task_list):
+        for task_idx,task_name in enumerate(self.do_task_list):
             for group in self.param_groups:
                 ch_lrs = []
                 for p in group['params']:
@@ -54,13 +55,13 @@ class SGD_c(SGD):
                         ch_lr = [lr] * p.shape[0]
                     elif group['lambda'] == 0.0:
                         ch_lr = [0] * p.shape[0]
-                        ch_indexes = torch.linspace(0, p.shape[0], len(do_task_list)+1, dtype=int)
+                        ch_indexes = torch.linspace(0, p.shape[0], len(self.do_task_list)+1, dtype=int)
                         ch_lr[ch_indexes[task_idx]:ch_indexes[task_idx+1]] = [lr] * (ch_indexes[task_idx+1] - ch_indexes[task_idx])
                     else:
                         ch_lr = [0] * p.shape[0]
                         share_ch = int(p.shape[0] * group['lambda'])
                         ch_lr[:share_ch] = [lr] * share_ch
-                        ch_indexes = torch.linspace(share_ch, p.shape[0], len(do_task_list)+1, dtype=int)
+                        ch_indexes = torch.linspace(share_ch, p.shape[0], len(self.do_task_list)+1, dtype=int)
                         ch_lr[ch_indexes[task_idx]:ch_indexes[task_idx+1]] = [lr] * (ch_indexes[task_idx+1] - ch_indexes[task_idx])
                         
                     ch_lrs += [ch_lr] # 各グループのレイヤ数*各レイヤのチャネル数

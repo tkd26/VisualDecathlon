@@ -47,7 +47,7 @@ parser.add_argument('--vgg_flowers', action='store_true')
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
 parser.add_argument('--mode_model', default='WideRes', choices=[
-    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet26', 'WideRes_reparam'])
+    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet26', 'WideRes_reparam', 'WideRes2_reparam'])
 parser.add_argument('--optim', default='adam', choices=[
     'sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd4-2', 'sgd_pre', 'sgd_pre2', 'adam', 'adam2', 'adam3'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
@@ -146,7 +146,7 @@ save_name.extend(['OPTIM'+args.optim])
 save_name.extend(['Model'+args.mode_model])
 if args.fc!=None: save_name.extend(['FC{}'.format(args.fc)])
 if args.batch_size!=128: save_name.extend(['BS{}'.format(args.batch_size)])
-# save_name.extend([args.norm])
+if args.norm!='bn': save_name.extend([args.norm])
 if args.version: save_name.extend([args.version])
 # save_name.extend(data_name)
 save_name.extend(do_task_list)
@@ -224,6 +224,8 @@ elif args.mode_model=='ResNet26':
     model = resnet26(num_classes=[task_dict[do_task_list[0]]['num_class']]).to(device)
 elif args.mode_model=='WideRes_reparam':
     model = WideResNet_reparam(depth=28, widen_factor=4, task_dict=task_dict, mode_norm=args.norm, dropout=False).to(device)
+elif args.mode_model=='WideRes2_reparam':
+    model = WideResNet_reparam(depth=28, widen_factor=8, task_dict=task_dict, mode_norm=args.norm, dropout=False).to(device)
 
 if args.random_lr:
     if args.optim=='sgd':
@@ -451,8 +453,8 @@ for index in range(load_epoch, total_epoch):
     avg_cost = dict([(task_name, [0,0,0,0]) for task_name in do_task_list])
 
     if args.optim=='sgd4' and args.random_lr:
-        if index==80: optimizer.update(0.01)
-        elif index==130: optimizer.update(0.001)
+        if index==200: optimizer.update(0.01)
+        elif index==400: optimizer.update(0.001)
     elif args.optim=='sgd4':
         scheduler.step()
 
