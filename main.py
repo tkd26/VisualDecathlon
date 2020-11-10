@@ -45,7 +45,7 @@ parser.add_argument('--ucf101', action='store_true')
 parser.add_argument('--vgg_flowers', action='store_true')
 
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
-parser.add_argument('--mode', default='train', choices=['train', 'val', 'test'])
+parser.add_argument('--mode', default='train', choices=['train', 'val', 'test', 'train_val'])
 parser.add_argument('--mode_model', default='WideRes', choices=[
     'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet26', 'WideRes_reparam', 'WideRes2_reparam'])
 parser.add_argument('--optim', default='adam', choices=[
@@ -127,8 +127,7 @@ task_dict = {
         'task_vec': torch.Tensor([0,0,0,0,0,0,0,0,0,1])},
 }
 
-if args.mode == 'train' or args.mode == 'val': # train時は選択したタスクのみを学習
-    do_task_list = [name for name,item in task_dict.items() if item['do']==True]
+do_task_list = [name for name,item in task_dict.items() if item['do']==True]
     
 task_num = len(task_dict)
 
@@ -139,6 +138,7 @@ task_num = len(task_dict)
 '''
 # save name
 save_name = []
+if args.mode=='train_val': save_name.extend(['TrainVal'])
 if args.random_lr: save_name.extend(['RandomLR'])
 save_name.extend(['OPTIM'+args.optim])
 save_name.extend(['Model'+args.mode_model])
@@ -151,7 +151,7 @@ save_name.extend(do_task_list)
 save_name = '_'.join(save_name)
 
 # make folder to save network
-if args.mode == 'train':
+if args.mode == 'train' or args.mode == 'train_val':
     if not os.path.exists('./weights/{}'.format(save_name)):
         os.makedirs('./weights/{}'.format(save_name))
 
@@ -167,24 +167,28 @@ if args.mode == 'train':
 '''
 im_train_set = {}
 im_val_set = {}
-for task_name in do_task_list:
-    im_train_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/train',
-                                                  transform=data_transform(data_path,task_name)),
-                                                  batch_size=args.batch_size,
-                                                  shuffle=True,
-                                                  num_workers=4, pin_memory=True)
-    im_val_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/val',
-                                                 transform=data_transform(data_path,task_name, train=False)),
-                                                 batch_size=args.batch_size,
-                                                 shuffle=False,
-                                                 num_workers=4, pin_memory=True)
-    if args.mode == 'test':
+im_test_set = {}
+if args.mode == 'test':
+    for task_name in task_dict.keys():
         im_test_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/test',
                                                     transform=data_transform(data_path,task_name, train=False)),
                                                     batch_size=args.batch_size,
                                                     shuffle=False,
                                                     num_workers=4, pin_memory=True)
-    print('{} loaded'.format(task_name))
+        print('{} loaded'.format(task_name))
+else:
+    for task_name in do_task_list:
+        im_train_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/train',
+                                                    transform=data_transform(data_path,task_name)),
+                                                    batch_size=args.batch_size,
+                                                    shuffle=True,
+                                                    num_workers=4, pin_memory=True)
+        im_val_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/val',
+                                                    transform=data_transform(data_path,task_name, train=False)),
+                                                    batch_size=args.batch_size,
+                                                    shuffle=False,
+                                                    num_workers=4, pin_memory=True)
+        print('{} loaded'.format(task_name))
 print('-----All dataset loaded-----')
 
 
@@ -393,7 +397,7 @@ else:
     load_epoch = 0
     
 # define writer
-if args.mode =='train':
+if args.mode =='train' or args.mode == 'train_val':
     writer = tbx.SummaryWriter(log_dir='logs/{}'.format(save_name))
 
 # compute parameter space
@@ -465,22 +469,30 @@ for index in range(load_epoch, total_epoch):
         scheduler.step()
 
     for task_name in do_task_list:
-        
         cost = np.zeros(2, dtype=np.float32)
-        train_dataset = iter(im_train_set[task_name])
-        train_batch = len(train_dataset)
-
-        if args.mode == 'train':
+        
+        if args.mode == 'train' or args.mode == 'train_val':
             print('train')
             model.train()
+            train_dataset = iter(im_train_set[task_name])
+            train_batch = len(train_dataset)
+            if args.mode == 'train_val':
+                val_dataset = iter(im_val_set[task_name])
+                val_batch = len(val_dataset)
+            else:
+                val_batch = 0
+
             with torch.set_grad_enabled(True):
                 optimizer.zero_grad()
                 
                 top1 = AverageMeter() # add
 
-                for i in range(train_batch):
+                for i in range(train_batch+val_batch):
                     
-                    train_data, train_label = train_dataset.next()
+                    if i < train_batch:
+                        train_data, train_label = train_dataset.next()
+                    else:
+                        train_data, train_label = val_dataset.next()
                     train_label = train_label.type(torch.LongTensor)
                     train_data, train_label = train_data.to(device), train_label.to(device)
 
@@ -511,7 +523,7 @@ for index in range(load_epoch, total_epoch):
             torch.save(model.state_dict(), 'weights/{}/{:0=5}.pth'.format(save_name, index+1))
 
                     
-        if args.mode == 'train' or args.mode == 'val' or args.mode == 'test':
+        if args.mode == 'train' or args.mode == 'val':
             # evaluating val data
             print('val')
             with torch.no_grad():
@@ -559,7 +571,7 @@ for index in range(load_epoch, total_epoch):
                 model.eval()
                 test_dataset = iter(im_test_set[task_name])
                 test_batch = len(test_dataset)
-                test_label = []
+                ans_test_label = []
 
                 if task_name in task_dict.keys(): 
 
@@ -573,13 +585,10 @@ for index in range(load_epoch, total_epoch):
                         task_vec = task_dict[task_name]['task_vec'].unsqueeze(0).repeat(batch,1).to(device)
 
                         test_pred1 = model(test_data, task_name=task_name, task_vec=task_vec, visualize=args.visualize)
-
-                        test_loss = model.model_fit(test_pred1, test_label, num_output=task_dict[task_name]['num_class'], device=device)
-
-                        test_predict_label1 = test_pred1.data.max(1)[1]
-                        test_pred = test_predict.cpu().numpy()
-                        test_label.extend(test_pred)
-                    ans[task_name] = test_label
+                        test_pred = test_pred1.data.max(1)[1]
+                        test_pred = test_pred.cpu().numpy()
+                        ans_test_label.extend(test_pred)
+                    ans[task_name] = ans_test_label
 
                 else:
 
@@ -587,10 +596,10 @@ for index in range(load_epoch, total_epoch):
                     for i in range(test_batch):
                         test_data, _ = test_dataset.next()
                         batch_len = test_data.shape[0]
-                        test_label.extend([0]*batch_len)
+                        ans_test_label.extend([0]*batch_len)
                     ans[task_name] = test_label
 
-                print('Evaluating DATASET: {:s} ...'.format(all_data_name[k]))
+                print('Evaluating DATASET: {:s} ...'.format(task_name))
 
     if args.mode == 'test':
         pickle_out = open("ans.pickle", "wb")
