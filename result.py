@@ -10,6 +10,7 @@ import sys
 
 pickle_in = open("ans.pickle","rb")
 ans = pickle.load(pickle_in)
+print(ans.keys())
 
 # ans['imagenet12'] = imagenet['imagenet12']
 
@@ -19,6 +20,7 @@ class_name = ['aircraft', 'cifar100', 'daimlerpedcls', 'dtd', 'gtsrb',
 dict_key = {}
 for i in range(10):
     cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_val.json'.format(class_name[i]))
+    # cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_test_stripped.json'.format(class_name[i]))
     imgIds = sorted(cocoGt.getImgIds())
     cat = cocoGt.getCatIds()
     data_key = np.zeros(len(imgIds))
@@ -30,11 +32,10 @@ for i in range(10):
     u[np.argsort(ind)]
     dict_key[class_name[i]] = u[np.argsort(ind)]
 
-
 res = []
 for i in range(10):
-    cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_val.json'.format(class_name[i]))
-#     cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_test_stripped.json'.format(class_name[i]))
+    # cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_val.json'.format(class_name[i]))
+    cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_test_stripped.json'.format(class_name[i]))
     imgIds = sorted(cocoGt.getImgIds())
     cat = cocoGt.getCatIds()
     for item in imgIds:

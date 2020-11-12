@@ -60,6 +60,8 @@ parser.add_argument('--visualize', action='store_true') # filmパラメータを
 # parser.add_argument('--save_outputs', action='store_true')
 # parser.add_argument('--save_imgs_idx', type=int, default=None)
 
+parser.add_argument('--test_name', type=str, default='ans')
+
 args = parser.parse_args()
 
 if args.gpu==None:
@@ -80,6 +82,7 @@ else:
         task_vec：タスク指定ベクトル
     task_num：全タスク数（=10）．task_dictの長さ
     do_task_list：実際に学習するタスクのリスト．train/valでは指定タスク，testでは全タスクが選択される．
+        test_task_list：test時のみ生成される．testに使用するタスクのリスト．
 '''
 
 data_path = '/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/data/'
@@ -127,7 +130,11 @@ task_dict = {
         'task_vec': torch.Tensor([0,0,0,0,0,0,0,0,0,1])},
 }
 
-do_task_list = [name for name,item in task_dict.items() if item['do']==True]
+if args.mode == 'test':
+    do_task_list = [name for name in task_dict.keys()]
+    test_task_list = [name for name,item in task_dict.items() if item['do']==True]
+else:
+    do_task_list = [name for name,item in task_dict.items() if item['do']==True]
     
 task_num = len(task_dict)
 
@@ -169,7 +176,7 @@ im_train_set = {}
 im_val_set = {}
 im_test_set = {}
 if args.mode == 'test':
-    for task_name in task_dict.keys():
+    for task_name in do_task_list:
         im_test_set[task_name] = torch.utils.data.DataLoader(torchvision.datasets.ImageFolder(data_path + task_name + '/test',
                                                     transform=data_transform(data_path,task_name, train=False)),
                                                     batch_size=args.batch_size,
@@ -553,16 +560,15 @@ for index in range(load_epoch, total_epoch):
                     # avg_cost[index][task_name][2:] += cost / val_batch
                     avg_cost[task_name][2:] += cost / val_batch
         
-        if avg_cost[task_name][3] > max_acc[task_name]:
-            max_acc[task_name] = avg_cost[task_name][3]
-            max_acc_epoch[task_name] = index + 1
-            
-        print('EPOCH: {:04d} | DATASET: {:s} || TRAIN: {:.4f} {:.4f} || VAL: {:.4f} {:.4f} || MAX: {:.4f} ({:04d}ep)'
-              .format(index+1, task_name,
-                      avg_cost[task_name][0], avg_cost[task_name][1],
-                      avg_cost[task_name][2], avg_cost[task_name][3],
-                      max_acc[task_name], max_acc_epoch[task_name]))
-
+            if avg_cost[task_name][3] > max_acc[task_name]:
+                max_acc[task_name] = avg_cost[task_name][3]
+                max_acc_epoch[task_name] = index + 1
+                
+            print('EPOCH: {:04d} | DATASET: {:s} || TRAIN: {:.4f} {:.4f} || VAL: {:.4f} {:.4f} || MAX: {:.4f} ({:04d}ep)'
+                .format(index+1, task_name,
+                        avg_cost[task_name][0], avg_cost[task_name][1],
+                        avg_cost[task_name][2], avg_cost[task_name][3],
+                        max_acc[task_name], max_acc_epoch[task_name]))
 
         if args.mode == 'test':
             # evaluating test data
@@ -573,7 +579,7 @@ for index in range(load_epoch, total_epoch):
                 test_batch = len(test_dataset)
                 ans_test_label = []
 
-                if task_name in task_dict.keys(): 
+                if task_name in test_task_list: 
 
                     print('Evaluating DATASET: {} ...'.format(task_name))
                     for i in range(test_batch):
@@ -597,12 +603,12 @@ for index in range(load_epoch, total_epoch):
                         test_data, _ = test_dataset.next()
                         batch_len = test_data.shape[0]
                         ans_test_label.extend([0]*batch_len)
-                    ans[task_name] = test_label
+                    ans[task_name] = ans_test_label
 
                 print('Evaluating DATASET: {:s} ...'.format(task_name))
 
     if args.mode == 'test':
-        pickle_out = open("ans.pickle", "wb")
+        pickle_out = open("{}.pickle".format(args.test_name), "wb")
         pickle.dump(ans, pickle_out)
         pickle_out.close()
         break
