@@ -13,4 +13,4 @@ weights_nonpretrain
 *.ipynb
 *.json
 mv_data.sh
-.zip
+*.zip
