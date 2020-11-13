@@ -47,7 +47,7 @@ parser.add_argument('--vgg_flowers', action='store_true')
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test', 'train_val'])
 parser.add_argument('--mode_model', default='WideRes', choices=[
-    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'ResNet26', 'WideRes_reparam', 'WideRes2_reparam'])
+    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'WideRes2_pretrain', 'ResNet26', 'WideRes_reparam', 'WideRes2_reparam'])
 parser.add_argument('--optim', default='adam', choices=[
     'sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd4-2', 'sgd_pre', 'sgd_pre2', 'adam', 'adam2', 'adam3'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
@@ -235,6 +235,8 @@ elif args.mode_model=='WideRes_STL':
     model = WideResNet_STL(depth=28, widen_factor=4, num_classes=[task_dict[do_task_list[0]]['num_class']], fc=args.fc).to(device)
 elif args.mode_model=='WideRes_pretrain':
     model = WideResNet(depth=28, widen_factor=4, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='no_film').to(device)
+elif args.mode_model=='WideRes2_pretrain':
+    model = WideResNet(depth=28, widen_factor=8, task_dict=task_dict, fc=args.fc, mode_norm=args.norm, version_film='no_film').to(device)
 elif args.mode_model=='ResNet26':
     model = resnet26(num_classes=[task_dict[do_task_list[0]]['num_class']]).to(device)
 elif args.mode_model=='WideRes_reparam':

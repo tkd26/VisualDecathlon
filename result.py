@@ -34,8 +34,8 @@ for i in range(10):
 
 res = []
 for i in range(10):
-    # cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_val.json'.format(class_name[i]))
-    cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_test_stripped.json'.format(class_name[i]))
+    cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_val.json'.format(class_name[i]))
+    # cocoGt = COCO('/home/yanai-lab/takeda-m/space/dataset/decathlon-1.0/annotations/{:s}_test_stripped.json'.format(class_name[i]))
     imgIds = sorted(cocoGt.getImgIds())
     cat = cocoGt.getCatIds()
     for item in imgIds:
