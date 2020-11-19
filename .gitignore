@@ -14,3 +14,4 @@ weights_nonpretrain
 *.json
 mv_data.sh
 *.zip
+coco

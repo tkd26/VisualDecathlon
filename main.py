@@ -47,7 +47,10 @@ parser.add_argument('--vgg_flowers', action='store_true')
 parser.add_argument('--random_lr', action='store_true') # 学習率をチャネルごとに設定するか
 parser.add_argument('--mode', default='train', choices=['train', 'val', 'test', 'train_val'])
 parser.add_argument('--mode_model', default='WideRes', choices=[
-    'WideRes', 'WideRes2', 'WideRes2_dropout', 'WideRes_mask', 'WideRes_STL', 'WideRes_pretrain', 'WideRes2_pretrain', 'ResNet26', 'WideRes_reparam', 'WideRes2_reparam'])
+    'ResNet26',
+    'WideRes', 'WideRes_STL', 'WideRes_mask', 'WideRes_pretrain',  
+    'WideRes2', 'WideRes2_dropout','WideRes2_pretrain',
+    'WideRes_reparam', 'WideRes2_reparam',])
 parser.add_argument('--optim', default='adam', choices=[
     'sgd', 'sgd2', 'sgd3', 'sgd3-2', 'sgd3-3', 'sgd3-4', 'sgd3-5', 'sgd4', 'sgd4-2', 'sgd_pre', 'sgd_pre2', 'adam', 'adam2', 'adam3'])
 parser.add_argument('-b', '--batch_size', type=int, default=128)
@@ -212,7 +215,7 @@ print('-----All dataset loaded-----')
         WideRes_mask：film（バイナリマスク）+lr学習時に使用
         WideRes_STL：シングルタスク学習時に使用
         WideRes_pretrain：プレトレインモデルによるシングルタスク学習時に使用
-                        （出力レイヤがプレトレインモデルと異なり，学習タスクに対応するようになっている．filmはなし）
+                        （出力レイヤがSTLモデルと異なり，学習タスクに対応するようになっている．filmはなし）
                         
             task_dict：モデルに学習させるタスク情報．
                         追加ですべてのタスクを学習可能にするために，task_dict（10タスク分の情報）をそのまま入れる．
@@ -328,7 +331,7 @@ if args.random_lr:
                 {"params": model.linear.parameters(), "lambda": 1.0},],
                               lr=0.01, weight_decay=0, nesterov=True, momentum=0.5,
                               do_task_list=do_task_list)
-    elif args.optim=='sgd4':
+    elif args.optim=='sgd4' or args.optim=='sgd4-2':
             optimizer = SGD_c(params=[
                 {"params": model.film_generator.parameters(), "lambda": 1.0},
                 {"params": model.film.parameters(), "lambda": 1.0},
@@ -471,9 +474,13 @@ ans = {} # testの答えを格納
 for index in range(load_epoch, total_epoch):
     avg_cost = dict([(task_name, [0,0,0,0]) for task_name in do_task_list])
 
-    if args.optim=='sgd4' and args.random_lr:
-        if index==200: optimizer.update(0.01)
-        elif index==400: optimizer.update(0.001)
+    if args.random_lr:
+        if args.optim=='sgd4':
+            if index==200: optimizer.update(0.01)
+            elif index==400: optimizer.update(0.001)
+        elif args.optim=='sgd4-2':
+            if index==300: optimizer.update(0.01)
+            elif index==600: optimizer.update(0.001)
     elif args.optim=='sgd4':
         scheduler.step()
 
